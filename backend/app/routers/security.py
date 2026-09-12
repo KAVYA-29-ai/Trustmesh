@@ -1,7 +1,7 @@
-
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from web3 import Web3
 
 from app.indexer.events import BlockchainEvent
 from app.db.models import AuditEvent, SecurityFinding
@@ -11,6 +11,8 @@ from app.services.security_agent import security_agent
 from app.services.security_repository import security_finding_repository
 from app.indexer.service import indexer_service
 from app.services.security_workflow import security_workflow
+from app.blockchain.adapters.policy_engine import PolicyEngineAdapter
+from app.blockchain.client import blockchain_client
 
 router = APIRouter()
 
@@ -31,6 +33,49 @@ def serialize_event(event) -> dict:
         "attack_type": event.attack_type,
         "action": event.action,
         "decision": event.decision,
+    }
+
+
+def _enforce_incident_decision(incident: dict, decision: str) -> dict:
+    """Apply the approved Security Center decision to PolicyEngine."""
+    normalized = decision.upper()
+    frozen = normalized in {"SUSPEND", "BLOCK"}
+
+    if not blockchain_client.is_configured():
+        return {
+            "status": "not_configured",
+            "frozen": frozen,
+        }
+
+    if not blockchain_client.is_connected():
+        return {
+            "status": "not_connected",
+            "frozen": frozen,
+        }
+
+    did = str(incident.get("identity") or "")
+    org_id = str(incident.get("org_id") or "acme-organization")
+    resource_id = str(incident.get("resource_id") or incident.get("resource") or "")
+
+    if not Web3.is_address(did):
+        raise ValueError("incident identity is not a valid Ethereum address")
+    if not resource_id:
+        raise ValueError("incident resource is missing")
+
+    adapter = PolicyEngineAdapter(blockchain_client)
+    tx_hash = adapter.set_resource_freeze(
+        Web3.keccak(text=org_id),
+        Web3.to_checksum_address(did),
+        Web3.keccak(text=resource_id),
+        frozen,
+    )
+
+    return {
+        "status": "confirmed",
+        "frozen": frozen,
+        "transaction_hash": tx_hash,
+        "org_id": org_id,
+        "resource_id": resource_id,
     }
 
 
@@ -130,13 +175,24 @@ async def decide_incident(
     payload: IncidentDecision,
 ) -> dict:
     try:
+        incident = next(
+            (item for item in security_workflow.list_incidents() if item["incident_id"] == incident_id),
+            None,
+        )
+        if incident is None:
+            raise ValueError("incident not found")
+
         result = security_workflow.apply_decision(
             incident_id,
             payload.decision,
         )
+        blockchain = _enforce_incident_decision(incident, payload.decision)
+        result["on_chain_enforcement"] = blockchain
     except ValueError as exc:
         status_code = 404 if "not found" in str(exc) else 400
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return {
         "service": "incident-response",
