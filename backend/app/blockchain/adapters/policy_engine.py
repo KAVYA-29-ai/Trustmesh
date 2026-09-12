@@ -8,6 +8,19 @@ class PolicyEngineAdapter:
 
     CONTRACT_NAME = "policy_engine"
 
+    _SET_RESOURCE_FREEZE_ABI = {
+        "type": "function",
+        "name": "setResourceFreeze",
+        "stateMutability": "nonpayable",
+        "inputs": [
+            {"type": "bytes32", "name": "orgId"},
+            {"type": "address", "name": "did"},
+            {"type": "bytes32", "name": "resourceId"},
+            {"type": "bool", "name": "frozen"},
+        ],
+        "outputs": [],
+    }
+
     def __init__(self, client: BlockchainClient) -> None:
         self.client = client
 
@@ -71,4 +84,22 @@ class PolicyEngineAdapter:
             subject,
             resource_id,
             action,
+        )
+
+    def set_resource_freeze(
+        self,
+        org_id: bytes,
+        did: str,
+        resource_id: bytes,
+        frozen: bool,
+    ) -> str:
+        """Freeze or unfreeze one identity/resource pair on-chain."""
+        return self.client.send_transaction(
+            self._contract_config(),
+            "setResourceFreeze",
+            org_id,
+            did,
+            resource_id,
+            frozen,
+            function_abi=self._SET_RESOURCE_FREEZE_ABI,
         )
