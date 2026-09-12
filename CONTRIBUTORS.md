@@ -9,7 +9,7 @@
 | | Role | ID | Contribution |
 |---|---|---|---|
 | ⚙️ | **Backend Development** | `` | FastAPI services, authentication (SIWE), security workflow, database models |
-| 🔗 | **Smart Contracts (Solidity)** | `ID-2` | DIDRegistry, PolicyEngine, AssetNFT, AuditLogger — contract design, Hardhat tests, on-chain enforcement logic |
+| 🔗 | **Smart Contracts (Solidity)** | `Aditya Singh` | DIDRegistry, PolicyEngine, AssetNFT, AuditLogger — contract design, Hardhat tests, on-chain enforcement logic |
 | 🎨 | **UI Design** | `ID-3` | Visual design, component styling, dashboard layout, design system |
 | 🧭 | **UX Design** | `ID-4` | User flows, interaction design, usability, information architecture |
 | 🎤 | **Presentation & Documentation** | `ID-5` | Pitch deck, demo script, business model, project documentation |
