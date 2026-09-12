@@ -30,3 +30,10 @@ export async function getSecurityIncidents(): Promise<{ incidents: SecurityIncid
 export async function getSecurityCopilot(): Promise<SecurityCopilotResponse> {
   return api.get<SecurityCopilotResponse>("/security/copilot");
 }
+
+export async function decideSecurityIncident(
+  incidentId: string,
+  decision: "ACCEPT" | "SUSPEND" | "BLOCK",
+): Promise<{ decision: { status: string; decision: string } }> {
+  return api.post(`/security/incidents/${encodeURIComponent(incidentId)}/decision`, { decision });
+}

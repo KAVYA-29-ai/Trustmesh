@@ -269,7 +269,7 @@ function Policies() {
                 <div className="policy-flow-node">
                   <span>01</span>
                   <strong>Identity</strong>
-                  <small>DID / wallet</small>
+                  <small>DID / identity</small>
                 </div>
 
                 <div className="policy-flow-arrow"><Icon name="arrow" /></div>

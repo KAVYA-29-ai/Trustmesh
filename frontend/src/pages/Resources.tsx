@@ -4,7 +4,7 @@ import Sidebar from "../components/layout/Sidebar";
 import Topbar from "../components/layout/Topbar";
 import StatusBadge from "../components/ui/StatusBadge";
 import Icon from "../components/ui/Icon";
-import { getResources } from "../services/resources";
+import { createResource, getResources } from "../services/resources";
 import type { Resource } from "../types/api";
 
 function Resources() {
@@ -12,9 +12,10 @@ function Resources() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: "", identifier: "", resource_type: "Protected Resource", application: "Acme Organization", owner: "TrustMesh Admin", access_level: "Restricted" });
 
-  useEffect(() => {
-    async function loadResources() {
+  async function loadResources() {
       try {
         setError("");
         const response = await getResources();
@@ -31,8 +32,22 @@ function Resources() {
       }
     }
 
-    loadResources();
+  useEffect(() => {
+
+    void loadResources();
   }, []);
+
+  async function handleCreate(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      await createResource(form);
+      setForm({ name: "", identifier: "", resource_type: "Protected Resource", application: "Acme Organization", owner: "TrustMesh Admin", access_level: "Restricted" });
+      setShowForm(false);
+      await loadResources();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unable to register resource.");
+    }
+  }
 
   const filteredResources = useMemo(() => {
     const query = search.toLowerCase();
@@ -131,10 +146,16 @@ function Resources() {
                 <h2>Protected resources</h2>
               </div>
 
-              <button type="button" className="primary-action">
-                + Register resource
+              <button type="button" className="primary-action" onClick={() => setShowForm((visible) => !visible)}>
+                {showForm ? "Close form" : "+ Register resource"}
               </button>
             </div>
+
+            {showForm && <form className="identity-toolbar" onSubmit={handleCreate}>
+              <input required placeholder="Resource name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+              <input required placeholder="Resource identifier" value={form.identifier} onChange={(event) => setForm({ ...form, identifier: event.target.value })} />
+              <button type="submit" className="primary-action">Create protected resource</button>
+            </form>}
 
             <div className="identity-toolbar">
               <div className="identity-search">

@@ -29,9 +29,9 @@ function Topbar() {
           <BellIcon />
         </button>
 
-        <div className="wallet-chip">
+        <div className="wallet-chip control-plane-chip">
           <span className="wallet-status wallet-status-ready" aria-hidden="true" />
-          <span>TrustMesh platform</span>
+          <span>Control plane online</span>
         </div>
 
         <button className="avatar" aria-label="Account">

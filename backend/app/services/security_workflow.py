@@ -17,7 +17,11 @@ from app.db.session import SessionLocal
 class IdentityState:
     violations: list[datetime] = field(default_factory=list)
     admin_attempts: int = 0
-    suspended: bool = False
+    status: str = "ACTIVE"
+
+    @property
+    def suspended(self) -> bool:
+        return self.status == "SUSPENDED"
 
 
 class SecurityWorkflowService:
@@ -54,10 +58,31 @@ class SecurityWorkflowService:
         ]
         state.violations = recent
 
-        if state.suspended:
+        if state.status != "ACTIVE":
             policy_allowed = False
 
         if policy_allowed:
+            event_id = f"demo-{uuid4()}"
+            self.event_sink(
+                BlockchainEvent(
+                    event_name="AccessAllowed",
+                    contract_address="trustmesh-policy-engine",
+                    transaction_hash=event_id,
+                    block_number=0,
+                    log_index=0,
+                    timestamp=now,
+                    data={
+                        "subject": request.did,
+                        "identity": request.did,
+                        "role": request.role,
+                        "resource": self._resource_label(request.resource_id),
+                        "resource_id": request.resource_id,
+                        "action": request.action,
+                        "decision": "ALLOW",
+                        "status": "Allowed",
+                    },
+                )
+            )
             return {
                 "identity": request.did,
                 "role": request.role,
@@ -66,7 +91,8 @@ class SecurityWorkflowService:
                 "decision": "ALLOW",
                 "adaptive_state": "ALLOW",
                 "allowed": True,
-                "suspended": False,
+                "suspended": state.suspended,
+                "status": state.status,
                 "violations": len(state.violations),
             }
 
@@ -90,8 +116,8 @@ class SecurityWorkflowService:
 
         adaptive_state = self._adaptive_state(severity)
 
-        if severity == "Critical":
-            state.suspended = True
+        if severity == "Critical" and state.status == "ACTIVE":
+            state.status = "SUSPENDED"
 
         event_id = f"demo-{uuid4()}"
 
@@ -136,8 +162,9 @@ class SecurityWorkflowService:
                 "reason": "PolicyEngine denied the requested action.",
                 "description": description,
                 "suspension_state": (
-                    "Suspended" if state.suspended else "Active"
+                    state.status.title()
                 ),
+                    "identity_status": state.status,
             },
         )
 
@@ -159,6 +186,7 @@ class SecurityWorkflowService:
             "adaptive_state": adaptive_state,
             "allowed": False,
             "suspended": state.suspended,
+            "status": state.status,
             "violations": violation_count,
             "risk_score": risk_score,
             "severity": severity,
@@ -179,16 +207,23 @@ class SecurityWorkflowService:
         state = self.identities.get(did)
 
         if state is None:
-            raise ValueError("identity not found")
+            persisted_status = self.identity_status(did)
+            if persisted_status == "ACTIVE":
+                raise ValueError("identity not found")
+            state = self.identities.setdefault(
+                did,
+                IdentityState(status=persisted_status),
+            )
 
-        if not state.suspended:
+        if state.status == "ACTIVE":
             return {
                 "identity": did,
                 "status": "Already Active",
                 "suspended": False,
             }
 
-        state.suspended = False
+        previous_status = state.status
+        state.status = "ACTIVE"
         state.violations.clear()
         state.admin_attempts = 0
 
@@ -207,8 +242,8 @@ class SecurityWorkflowService:
                     "identity": did,
                     "subject": did,
                     "recovery_request_id": recovery_request_id,
-                    "previous_state": "Suspended",
-                    "current_state": "Active",
+                    "previous_state": previous_status,
+                    "current_state": "ACTIVE",
                     "action": "UNBLOCK",
                     "reason": "Approved recovery request executed.",
                 },
@@ -219,6 +254,7 @@ class SecurityWorkflowService:
             "identity": did,
             "status": "Active",
             "suspended": False,
+            "status": "ACTIVE",
             "event_id": event_id,
             "recovery_request_id": recovery_request_id,
         }
@@ -227,16 +263,84 @@ class SecurityWorkflowService:
         state = self.identities.get(did)
 
         if state is not None:
-            return state.suspended
+            return state.status != "ACTIVE"
 
         for incident in self._persisted_incidents():
             if (
                 incident.get("identity") == did
-                and incident.get("suspended")
+                and incident.get("status", "ACTIVE") != "ACTIVE"
             ):
                 return True
 
         return False
+
+    def identity_status(self, did: str) -> str:
+        state = self.identities.get(did)
+        if state is not None:
+            return state.status
+
+        for incident in self.list_incidents():
+            if incident.get("identity") == did:
+                return str(incident.get("status", "ACTIVE")).upper()
+
+        return "ACTIVE"
+
+    def apply_decision(self, incident_id: str, decision: str) -> dict:
+        normalized = decision.upper()
+        if normalized not in {"ACCEPT", "SUSPEND", "BLOCK"}:
+            raise ValueError("decision must be ACCEPT, SUSPEND, or BLOCK")
+
+        incident = next(
+            (item for item in self.list_incidents() if item["incident_id"] == incident_id),
+            None,
+        )
+        if incident is None:
+            raise ValueError("incident not found")
+
+        did = incident["identity"]
+        state = self.identities.setdefault(did, IdentityState())
+        previous_status = state.status
+        if normalized == "SUSPEND":
+            state.status = "SUSPENDED"
+        elif normalized == "BLOCK":
+            state.status = "BLOCKED"
+
+        now = datetime.now(timezone.utc)
+        event_id = f"decision-{uuid4()}"
+        self.event_sink(
+            BlockchainEvent(
+                event_name="SecurityDecision",
+                contract_address="trustmesh-security-center",
+                transaction_hash=event_id,
+                block_number=0,
+                log_index=0,
+                timestamp=now,
+                data={
+                    "identity": did,
+                    "subject": did,
+                    "incident_id": incident_id,
+                    "decision": normalized,
+                    "previous_state": previous_status,
+                    "current_state": state.status,
+                    "reason": "Human decision confirmed in Security Center.",
+                },
+            )
+        )
+
+        for item in self.incidents:
+            if item["incident_id"] == incident_id:
+                item["decision"] = normalized
+                item["status"] = state.status
+                item["suspended"] = state.status == "SUSPENDED"
+
+        return {
+            "incident_id": incident_id,
+            "identity": did,
+            "decision": normalized,
+            "previous_state": previous_status,
+            "status": state.status,
+            "event_id": event_id,
+        }
 
     def simulate_attack(
         self,
@@ -291,6 +395,11 @@ class SecurityWorkflowService:
                     .where(AuditEvent.event_name == "AccessDenied")
                     .order_by(AuditEvent.timestamp.desc())
                 ).all()
+                decisions = db.scalars(
+                    select(AuditEvent)
+                    .where(AuditEvent.event_name == "SecurityDecision")
+                    .order_by(AuditEvent.timestamp.desc())
+                ).all()
         except Exception:
             return []
 
@@ -312,6 +421,11 @@ class SecurityWorkflowService:
             if identity not in latest_by_identity:
                 latest_by_identity[identity] = event
 
+        decisions_by_incident = {
+            str((event.data or {}).get("incident_id")): event.data or {}
+            for event in decisions
+            if (event.data or {}).get("incident_id")
+        }
         incidents: list[dict] = []
 
         for event in latest_by_identity.values():
@@ -345,6 +459,12 @@ class SecurityWorkflowService:
             )
 
             incident_id = f"INC-PERSISTED-{event_id}"
+            decision_data = decisions_by_incident.get(incident_id, {})
+            identity_status = str(
+                decision_data.get("current_state")
+                or data.get("identity_status")
+                or ("SUSPENDED" if suspended else "ACTIVE")
+            ).upper()
 
             incident = {
                 "incident_id": incident_id,
@@ -381,10 +501,12 @@ class SecurityWorkflowService:
                 "risk_score": risk_score,
                 "severity": severity,
                 "decision": str(
-                    data.get("decision")
+                    decision_data.get("decision")
+                    or data.get("decision")
                     or "DENY"
                 ),
-                "suspended": suspended,
+                "status": identity_status,
+                "suspended": identity_status == "SUSPENDED",
                 "created_at": timestamp,
                 "evidence": [
                     {

@@ -104,6 +104,7 @@ export interface SecurityIncident {
   severity: string;
   decision: string;
   suspended: boolean;
+  status?: string;
   created_at: string | null;
   timeline: Array<{
     stage: string;

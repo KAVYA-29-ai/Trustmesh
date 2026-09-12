@@ -10,6 +10,7 @@ import {
   getWorkflowGraph,
   getSecurityIncidents,
   getSecurityCopilot,
+  decideSecurityIncident,
 } from "../services/security";
 import type {
   SecurityEvent,
@@ -105,6 +106,23 @@ function Security() {
   const [riskGraph, setRiskGraph] = useState<RiskGraphResponse | null>(null);
   const [incidents, setIncidents] = useState<SecurityIncident[]>([]);
   const [copilot, setCopilot] = useState<SecurityCopilotResponse | null>(null);
+  const [decisionLoading, setDecisionLoading] = useState("");
+  const [decisionError, setDecisionError] = useState("");
+
+  async function decideIncident(decision: "ACCEPT" | "SUSPEND" | "BLOCK") {
+    if (!latestIncident || !window.confirm(`Confirm ${decision} for ${latestIncident.identity}?`)) return;
+    setDecisionLoading(decision);
+    setDecisionError("");
+    try {
+      await decideSecurityIncident(latestIncident.incident_id, decision);
+      const response = await getSecurityIncidents();
+      setIncidents(response.incidents);
+    } catch (requestError) {
+      setDecisionError(requestError instanceof Error ? requestError.message : "Unable to record the security decision.");
+    } finally {
+      setDecisionLoading("");
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -128,6 +146,7 @@ function Security() {
   return <div className="app-shell"><Sidebar /><div className="main-area"><Topbar /><main className="dashboard security-page">
     <section className="page-heading security-hero-heading"><div><div className="eyebrow">SECURITY OPERATIONS / LIVE</div><h1>Security Center</h1><p>Identity behavior, policy decisions, and adaptive response in one operational view.</p></div><div className="live-status"><span className="status-pulse" /> Live telemetry · refreshes every 8s</div></section>
     {error && <div className="security-load-error" role="alert"><Icon name="shield" /><span>{error}</span></div>}
+    {decisionError && <div className="security-load-error" role="alert"><Icon name="shield" /><span>{decisionError}</span></div>}
     <section className="security-posture-grid">
       <article className="posture-score">
         <span className="security-metric-label">SECURITY POSTURE</span>
@@ -143,7 +162,7 @@ function Security() {
     <section className="security-main-grid"><article className="panel security-panel activity-command-panel"><div className="panel-header"><div><div className="panel-kicker">LIVE SECURITY ACTIVITY</div><h2>What is happening now</h2></div><StatusBadge>{`${events.length} events`}</StatusBadge></div>{events.length === 0 ? <div className="resource-empty"><div className="security-state-icon"><Icon name="database" /></div><h3>No active security events</h3><p>Policy and audit telemetry will appear here as it is indexed.</p></div> : <div className="activity-command-list">{events.slice(0, 8).map((event) => <div className="command-event" key={event.event_id}><span className={`command-event-dot ${event.severity.toLowerCase()}`} /><div><strong>{event.event_type}</strong><span>{event.description}</span></div><div className="command-event-meta"><b>{event.decision}</b><small>{event.status}</small></div></div>)}</div>}</article><article className="panel security-panel copilot-panel"><div className="panel-header"><div><div className="panel-kicker">AI SECURITY</div><h2>Threat assessment</h2></div><StatusBadge>{copilot?.provider ?? "Loading"}</StatusBadge></div><div className="copilot-assessment"><span className="copilot-label">CURRENT THREAT</span><strong>{copilot?.what_happened ?? "No current threat assessment"}</strong><span className="copilot-label">WHY IT MATTERS</span><p>{copilot?.why_suspicious ?? "The analyst will explain suspicious behavior when evidence is available."}</p><div className="copilot-risk"><span>RISK ASSESSMENT</span><strong>{copilot?.risk_explanation ?? "No risk evidence"}</strong></div><div className="copilot-recommendation"><span>RECOMMENDED ACTION</span><strong>{copilot?.recommendation ?? "Continue monitoring"}</strong></div></div></article></section>
     <section className="panel security-panel behavioral-panel"><div className="panel-header"><div><div className="panel-kicker">BEHAVIORAL ANALYSIS</div><h2>Identity behavior, not isolated failures</h2><p className="panel-description">Signals are derived from the current workflow incident and indexed security events.</p></div><StatusBadge>{latestIncident ? `${latestIncident.violations} violations` : "Awaiting evidence"}</StatusBadge></div><BehavioralAnalysis incident={latestIncident} /></section>
     <section className="panel security-panel"><div className="panel-header"><div><div className="panel-kicker">RESPONSE PIPELINE</div><h2>Attack to administrative alert</h2></div><StatusBadge>{latestIncident?.suspended ? "Identity suspended" : "Monitoring"}</StatusBadge></div><IncidentPipeline incident={latestIncident} /></section>
-    <section className="security-main-grid"><article className="panel security-panel"><div className="panel-header"><div><div className="panel-kicker">TRUST INTELLIGENCE</div><h2>Why this identity is trusted or restricted</h2></div><StatusBadge>{riskGraph ? `${riskGraph.count.nodes} nodes` : "Loading"}</StatusBadge></div><TrustGraph graph={riskGraph} /></article><article className="panel security-panel incident-panel"><div className="panel-header"><div><div className="panel-kicker">INCIDENT RESPONSE</div><h2>Open incidents</h2></div><StatusBadge>{`${incidents.length}`}</StatusBadge></div>{latestIncident ? <div className="incident-card"><div className="incident-card-top"><span className={severityClass(latestIncident.severity)}>{latestIncident.severity}</span><code>{latestIncident.incident_id}</code></div><strong>{latestIncident.identity}</strong><span>{latestIncident.attack_type} against {latestIncident.resource}</span><div className="incident-card-meta"><span>Risk <b>{latestIncident.risk_score}/100</b></span><span>Decision <b>{latestIncident.decision}</b></span></div></div> : <div className="resource-empty"><div className="security-state-icon"><Icon name="check" /></div><h3>No workflow incidents</h3><p>Run the controlled simulation from Acme Organization.</p></div>}</article></section>
+    <section className="security-main-grid"><article className="panel security-panel"><div className="panel-header"><div><div className="panel-kicker">TRUST INTELLIGENCE</div><h2>Why this identity is trusted or restricted</h2></div><StatusBadge>{riskGraph ? `${riskGraph.count.nodes} nodes` : "Loading"}</StatusBadge></div><TrustGraph graph={riskGraph} /></article><article className="panel security-panel incident-panel"><div className="panel-header"><div><div className="panel-kicker">INCIDENT RESPONSE</div><h2>Open incidents</h2></div><StatusBadge>{`${incidents.length}`}</StatusBadge></div>{latestIncident ? <div className="incident-card"><div className="incident-card-top"><span className={severityClass(latestIncident.severity)}>{latestIncident.severity}</span><code>{latestIncident.incident_id}</code></div><strong>{latestIncident.identity}</strong><span>{latestIncident.attack_type} against {latestIncident.resource}</span><div className="incident-card-meta"><span>Risk <b>{latestIncident.risk_score}/100</b></span><span>Decision <b>{latestIncident.decision}</b></span><span>Identity <b>{latestIncident.status ?? (latestIncident.suspended ? "SUSPENDED" : "ACTIVE")}</b></span></div><div className="incident-decision-actions"><button type="button" onClick={() => void decideIncident("ACCEPT")} disabled={Boolean(decisionLoading)}>Accept</button><button type="button" onClick={() => void decideIncident("SUSPEND")} disabled={Boolean(decisionLoading)}>Suspend</button><button type="button" onClick={() => void decideIncident("BLOCK")} disabled={Boolean(decisionLoading)}>Block</button></div></div> : <div className="resource-empty"><div className="security-state-icon"><Icon name="check" /></div><h3>No workflow incidents</h3><p>Run the controlled simulation from Acme Organization.</p></div>}</article></section>
     <section className="panel security-panel findings-panel"><div className="panel-header"><div><div className="panel-kicker">ANALYZED EVIDENCE</div><h2>Findings</h2></div><StatusBadge>{`${criticalFindings.length} high priority`}</StatusBadge></div>{findings.length === 0 ? <div className="resource-empty"><div className="security-state-icon"><Icon name="check" /></div><h3>No findings</h3><p>The Security Agent has not detected analyzed threats yet.</p></div> : <div className="finding-strip">{findings.slice(0, 6).map((finding) => <div className="finding-chip" key={finding.event_id}><span className={severityClass(finding.severity)}>{finding.severity}</span><strong>{finding.event_name}</strong><small>Risk {finding.risk_score}/100</small></div>)}</div>}</section>
   </main></div></div>;
 }

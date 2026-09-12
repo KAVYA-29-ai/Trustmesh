@@ -66,8 +66,7 @@ function Identities() {
               <div className="eyebrow">IDENTITY MANAGEMENT</div>
               <h1>Identities</h1>
               <p>
-                Manage decentralized identities, wallet bindings, roles,
-                and verification status.
+                Manage demo identities, roles, and verification status.
               </p>
             </div>
 
@@ -138,7 +137,7 @@ function Identities() {
                 <span className="identity-search-icon"><Icon name="search" /></span>
                 <input
                   type="text"
-                  placeholder="Search DID, wallet, or role..."
+                  placeholder="Search DID, identity, or role..."
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                 />
@@ -153,7 +152,7 @@ function Identities() {
             <div className="identity-table">
               <div className="identity-table-header">
                 <span>IDENTITY</span>
-                <span>WALLET</span>
+                <span>IDENTIFIER</span>
                 <span>ROLE</span>
                 <span>STATUS</span>
                 <span>LAST ACTIVE</span>
@@ -163,7 +162,7 @@ function Identities() {
                 <div className="identity-empty">
                   <div className="security-state-icon"><Icon name="identity" /></div>
                   <h3>No identities found</h3>
-                  <p>Try a different DID, wallet address, or role.</p>
+                  <p>Try a different DID, identity, or role.</p>
                 </div>
               ) : (
                 filteredIdentities.map((identity) => (

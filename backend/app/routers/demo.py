@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 from app.models.common import AccessCheckRequest
-from app.routers.access import authorization_service
 from app.services.security_workflow import security_workflow
 
 
@@ -9,18 +9,29 @@ router = APIRouter()
 ORG_ID = "acme-organization"
 STUDENT_IDENTITY = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
 STUDENT_RESOURCE = "acme-student-records"
+EMPLOYEE_RESOURCE = "acme-employee-records"
 ADMIN_RESOURCE = "acme-admin-console"
+BANK_ACCOUNT_RESOURCE = "acme-bank-account"
+BANK_TRANSFER_RESOURCE = "acme-bank-transfer"
+BANK_ADMIN_RESOURCE = "acme-bank-admin"
 READ_ACTION = "READ"
 
 
+class BankTransferRequest(AccessCheckRequest):
+    amount: float = Field(gt=0, le=10000)
+    recipient: str = Field(min_length=1, max_length=120)
+
+
 async def _check_policy(request: AccessCheckRequest) -> bool:
-    return await authorization_service.check_access(
-        org_id=request.org_id,
-        subject=request.did,
-        role=request.role,
-        resource_id=request.resource_id,
-        action=request.action,
-    )
+    if security_workflow.identity_status(request.did) != "ACTIVE":
+        return False
+    if request.resource_id in {BANK_ACCOUNT_RESOURCE, STUDENT_RESOURCE, EMPLOYEE_RESOURCE}:
+        return request.action.upper() == "READ" and request.role in {"Employee", "Admin"}
+    if request.resource_id == BANK_TRANSFER_RESOURCE:
+        return request.action.upper() == "TRANSFER" and request.role in {"Employee", "Admin"}
+    if request.resource_id in {ADMIN_RESOURCE, BANK_ADMIN_RESOURCE}:
+        return request.action.upper() == "ADMIN" and request.role == "Admin"
+    return False
 
 
 def _policy_error(exc: Exception) -> HTTPException:
@@ -110,6 +121,38 @@ async def simulate_policy(request: dict) -> dict:
         access_request,
         str(request.get("simulated_decision", "DENY")),
     )
+
+
+@router.post("/bank/account")
+async def bank_account(request: AccessCheckRequest) -> dict:
+    allowed = await _check_policy(
+        request.model_copy(update={"resource_id": BANK_ACCOUNT_RESOURCE, "action": "READ"})
+    )
+    result = security_workflow.authorize(
+        request.model_copy(update={"resource_id": BANK_ACCOUNT_RESOURCE, "action": "READ"}),
+        allowed,
+    )
+    if not result["allowed"]:
+        return result
+    return {
+        **result,
+        "account": {"account_id": "ACME-001", "balance": 12480.50, "currency": "USD"},
+    }
+
+
+@router.post("/bank/transfer")
+async def bank_transfer(request: BankTransferRequest) -> dict:
+    access_request = request.model_copy(update={"resource_id": BANK_TRANSFER_RESOURCE, "action": "TRANSFER"})
+    result = security_workflow.authorize(access_request, await _check_policy(access_request))
+    if not result["allowed"]:
+        return result
+    return {**result, "transfer": {"recipient": request.recipient, "amount": request.amount, "status": "COMPLETED"}}
+
+
+@router.post("/bank/admin")
+async def bank_admin(request: AccessCheckRequest) -> dict:
+    access_request = request.model_copy(update={"resource_id": BANK_ADMIN_RESOURCE, "action": "ADMIN"})
+    return security_workflow.authorize(access_request, await _check_policy(access_request))
 
 
 @router.get("/incidents")

@@ -1,5 +1,6 @@
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.indexer.events import BlockchainEvent
@@ -12,6 +13,10 @@ from app.indexer.service import indexer_service
 from app.services.security_workflow import security_workflow
 
 router = APIRouter()
+
+
+class IncidentDecision(BaseModel):
+    decision: str = Field(min_length=1, max_length=20)
 
 
 def serialize_event(event) -> dict:
@@ -116,6 +121,36 @@ async def list_incidents() -> dict:
         "status": "ready",
         "count": len(incidents),
         "incidents": incidents,
+    }
+
+
+@router.post("/incidents/{incident_id}/decision")
+async def decide_incident(
+    incident_id: str,
+    payload: IncidentDecision,
+) -> dict:
+    try:
+        result = security_workflow.apply_decision(
+            incident_id,
+            payload.decision,
+        )
+    except ValueError as exc:
+        status_code = 404 if "not found" in str(exc) else 400
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+
+    return {
+        "service": "incident-response",
+        "status": "decision-recorded",
+        "decision": result,
+    }
+
+
+@router.get("/identities/{did}/status")
+async def get_security_identity_status(did: str) -> dict:
+    return {
+        "service": "security",
+        "identity": did,
+        "status": security_workflow.identity_status(did),
     }
 
 

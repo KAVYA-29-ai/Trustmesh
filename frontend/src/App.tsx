@@ -8,7 +8,8 @@ import Assets from "./pages/Assets";
 import Security from "./pages/Security";
 import Recovery from "./pages/Recovery";
 import Audit from "./pages/Audit";
-import UniversityPortal from "./pages/UniversityPortal";
+import BankDemo from "./pages/BankDemo";
+import AttackDemo from "./pages/AttackDemo";
 
 
 function App() {
@@ -17,8 +18,10 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/portal" element={<UniversityPortal />} />
-        <Route path="/demo" element={<UniversityPortal />} />
+        <Route path="/portal" element={<BankDemo />} />
+        <Route path="/bank" element={<BankDemo />} />
+        <Route path="/attack" element={<AttackDemo />} />
+        <Route path="/demo" element={<AttackDemo />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/identities" element={<Identities />} />
         <Route path="/policies" element={<Policies />} />

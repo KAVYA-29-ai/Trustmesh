@@ -52,6 +52,18 @@ export interface PolicySimulationResult {
   simulated_decision: string;
 }
 
+export interface BankActionResult {
+  allowed: boolean;
+  decision: "ALLOW" | "DENY";
+  identity: string;
+  status?: string;
+  account?: { account_id: string; balance: number; currency: string };
+  transfer?: { recipient: string; amount: number; status: string };
+  incident_id?: string;
+  event_id?: string;
+  reason?: string;
+}
+
 export function authorizeResource(
   request: AuthorizationRequest,
 ): Promise<DemoAccessResult> {
@@ -74,4 +86,16 @@ export function simulatePolicyImpact(
   request: AuthorizationRequest & { simulated_decision: string },
 ): Promise<PolicySimulationResult> {
   return api.post<PolicySimulationResult>("/demo/policy-simulate", request);
+}
+
+export function bankAccount(request: AuthorizationRequest): Promise<BankActionResult> {
+  return api.post<BankActionResult>("/demo/bank/account", request);
+}
+
+export function bankTransfer(request: AuthorizationRequest & { amount: number; recipient: string }): Promise<BankActionResult> {
+  return api.post<BankActionResult>("/demo/bank/transfer", request);
+}
+
+export function bankAdmin(request: AuthorizationRequest): Promise<BankActionResult> {
+  return api.post<BankActionResult>("/demo/bank/admin", request);
 }
