@@ -1,5 +1,6 @@
 from typing import Any
 
+from eth_account import Account
 from web3 import Web3
 
 from app.blockchain.contracts import ContractConfig, contract_registry
@@ -70,6 +71,50 @@ class BlockchainClient:
         contract = self.contract(contract_config)
         function = getattr(contract.functions, function_name)
         return function(*args).call()
+
+    def send_transaction(
+        self,
+        contract_config: ContractConfig,
+        function_name: str,
+        *args: Any,
+        function_abi: dict | None = None,
+    ) -> str:
+        """Sign, submit, and confirm a state-changing contract transaction."""
+        if not settings.deployer_private_key:
+            raise RuntimeError("DEPLOYER_PRIVATE_KEY is not configured")
+
+        self.validate_network()
+        account = Account.from_key(settings.deployer_private_key)
+
+        if function_abi is None:
+            contract = self.contract(contract_config)
+        else:
+            contract = self.web3.eth.contract(
+                address=Web3.to_checksum_address(contract_config.address),
+                abi=[function_abi],
+            )
+
+        function = getattr(contract.functions, function_name)(*args)
+        nonce = self.web3.eth.get_transaction_count(account.address, "pending")
+        gas_price = self.web3.eth.gas_price
+        gas = function.estimate_gas({"from": account.address})
+        transaction = function.build_transaction(
+            {
+                "from": account.address,
+                "nonce": nonce,
+                "chainId": self.expected_chain_id,
+                "gas": gas,
+                "gasPrice": gas_price,
+            }
+        )
+        signed = account.sign_transaction(transaction)
+        tx_hash = self.web3.eth.send_raw_transaction(signed.raw_transaction)
+        receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+
+        if receipt.status != 1:
+            raise RuntimeError(f"Blockchain transaction reverted: {tx_hash.hex()}")
+
+        return tx_hash.hex()
 
     def require_contract(self, name: str) -> ContractConfig:
         """Return a configured contract or raise a clear configuration error."""
