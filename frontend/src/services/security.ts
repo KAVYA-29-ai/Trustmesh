@@ -56,7 +56,7 @@ export async function decideSecurityIncident(
   decision: {
     status: string;
     decision: string;
-    on_chain_enforcement?: { status: string; transaction_hash?: string };
+    on_chain_enforcement?: { status: string; frozen: boolean; transaction_hash?: string };
   };
 }> {
   return api.post(`/security/incidents/${encodeURIComponent(incidentId)}/decision`, { decision });

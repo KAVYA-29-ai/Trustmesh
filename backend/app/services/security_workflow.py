@@ -359,6 +359,29 @@ class SecurityWorkflowService:
                 item["decision"] = normalized
                 item["status"] = state.status
                 item["suspended"] = state.status == "SUSPENDED"
+                item["on_chain_enforcement"] = on_chain_enforcement
+                item["timeline"].extend(
+                    [
+                        {
+                            "stage": "ADMIN_RESPONSE",
+                            "timestamp": now.isoformat(),
+                        },
+                        {
+                            "stage": (
+                                "BLOCKCHAIN_ENFORCEMENT"
+                                if on_chain_enforcement.get("status") == "confirmed"
+                                else "BLOCKCHAIN_ENFORCEMENT_PENDING"
+                            ),
+                            "timestamp": now.isoformat(),
+                        },
+                        {
+                            "stage": "RECOVERY"
+                            if not frozen
+                            else "RESOURCE_FREEZE",
+                            "timestamp": now.isoformat(),
+                        },
+                    ]
+                )
 
         return {
             "incident_id": incident_id,
@@ -494,6 +517,15 @@ class SecurityWorkflowService:
             for event in decisions
             if (event.data or {}).get("incident_id")
         }
+        decision_timestamps = {
+            str((event.data or {}).get("incident_id")): (
+                event.timestamp.isoformat()
+                if event.timestamp
+                else datetime.now(timezone.utc).isoformat()
+            )
+            for event in decisions
+            if (event.data or {}).get("incident_id")
+        }
         incidents: list[dict] = []
 
         for event in events:
@@ -585,6 +617,7 @@ class SecurityWorkflowService:
                 "ai_analysis": data.get("ai_analysis") or {},
                 "status": identity_status,
                 "suspended": identity_status == "SUSPENDED",
+                "on_chain_enforcement": decision_data.get("on_chain_enforcement"),
                 "created_at": timestamp,
                 "evidence": [
                     {
@@ -643,6 +676,31 @@ class SecurityWorkflowService:
                     "measured_from": "recorded_workflow_event",
                 },
             }
+
+            decision_timestamp = decision_timestamps.get(incident_id)
+            if decision_data:
+                incident["timeline"].extend(
+                    [
+                        {
+                            "stage": "ADMIN_RESPONSE",
+                            "timestamp": decision_timestamp,
+                        },
+                        {
+                            "stage": (
+                                "BLOCKCHAIN_ENFORCEMENT"
+                                if (decision_data.get("on_chain_enforcement") or {}).get("status") == "confirmed"
+                                else "BLOCKCHAIN_ENFORCEMENT_PENDING"
+                            ),
+                            "timestamp": decision_timestamp,
+                        },
+                        {
+                            "stage": "RECOVERY"
+                            if str(decision_data.get("decision", "")).upper() == "ACCEPT"
+                            else "RESOURCE_FREEZE",
+                            "timestamp": decision_timestamp,
+                        },
+                    ]
+                )
 
             incidents.append(incident)
 

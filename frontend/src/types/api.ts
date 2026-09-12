@@ -122,6 +122,11 @@ export interface SecurityIncident {
     restriction_latency_ms: number;
     measured_from: string;
   };
+  on_chain_enforcement?: {
+    status: string;
+    frozen: boolean;
+    transaction_hash?: string;
+  };
 }
 
 export interface SecurityResponse {

@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     audit_logger_address: str | None = None
 
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-3.6-flash"
 
     cors_origins: str = "http://localhost:5173"
 

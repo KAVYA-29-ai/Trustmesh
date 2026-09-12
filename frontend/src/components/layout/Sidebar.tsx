@@ -191,6 +191,16 @@ function Sidebar() {
 
             <span className="nav-item-label">AI Security</span>
           </NavLink>
+
+          <NavLink
+            to="/compliance"
+            className={({ isActive }) =>
+              `nav-item${isActive ? " active" : ""}`
+            }
+          >
+            <NavIcon name="audit" />
+            <span className="nav-item-label">DPDP Report</span>
+          </NavLink>
         </section>
       </nav>
 
