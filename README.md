@@ -1,243 +1,159 @@
 # TrustMesh
 
-TrustMesh is a blockchain-backed trust and security platform for managing decentralized identities, access policies, digital assets, audit evidence, and security risk in one place.
+**A self-defending, blockchain-enforced identity & access platform — built for Smart India Hackathon PS 26125.**
 
-The project combines smart-contract enforcement with a FastAPI service, persistent security data, and a React operations console. Its goal is to make identity and access decisions explainable: every important action can be connected to policy, evidence, audit history, and risk.
+TrustMesh doesn't just log security incidents — it **detects, freezes, explains, and reports on them automatically**, using smart contracts as the final, tamper-proof enforcement layer instead of just a database.
 
-> **Current state:** The local MVP flow is implemented and verified around Hardhat chain `31337`: protected access, denial evidence, SecurityAgent analysis, incident response, PolicyEngine freeze/unfreeze, audit evidence, DPDP evidence reporting, and backend-derived risk scoring. Production deployment and external-chain streaming are outside this demo scope.
+> **Live local demo:** the full attack → detection → on-chain freeze → forensic report loop runs end-to-end today, on a local Hardhat chain — **no wallet, no Polygon key, no testnet funds required.** See [`docs/LOCAL-DEMO.md`](docs/LOCAL-DEMO.md) for the exact walkthrough.
 
-## What TrustMesh Does
+---
 
-- Registers and resolves decentralized identifiers (DIDs).
-- Rotates DID verification keys with controller authorization.
-- Enforces roles, permissions, and authorization rules on-chain and in the backend.
-- Represents DID-owned resources as secured ERC-721-style assets.
-- Records immutable audit events through a dedicated contract architecture.
-- Authenticates users with Sign-In with Ethereum (SIWE), including nonce and persistent session handling.
-- Ingests normalized blockchain events for repository storage and security analysis.
-- Detects security risk with deterministic rules and an optional Gemini reasoning agent.
-- Persists security findings and evidence relationships in PostgreSQL.
-- Presents identity, policy, resource, asset, audit, recovery, and security workflows in a React UI.
+## Why TrustMesh is different
+
+Most identity/access-control submissions stop at "detect and log." TrustMesh closes the loop:
+
+| Typical solution | TrustMesh |
+| --- | --- |
+| Detects a suspicious action, writes a log entry | Detects the action, **automatically calls `PolicyEngine.setResourceFreeze()` on-chain** — enforcement is immutable, not just a database flag |
+| A human reads logs later to figure out what happened | **Forensic snapshot service** builds an integrity-hashed evidence package per transaction, ready to hand to an auditor |
+| A security dashboard shows raw events | **AI Copilot** (Gemini-backed, with a deterministic fallback) explains *why* an incident was flagged, in plain language |
+| Compliance is a manual spreadsheet exercise | **DPDP evidence report** is generated directly from on-chain + indexed evidence, separating "what we observed" from "what it means for compliance" — and it tells you where the evidence gaps are |
+| Risk is a gut feeling | **Backend-derived insurance-style risk score** computed from real incidents, findings, and denial events |
+
+Every one of these is **wired to real evidence** — not a mocked number on a dashboard.
+
+## What TrustMesh does
+
+- Registers and resolves **decentralized identities (DIDs)**, with controller-authorized key rotation.
+- Enforces **roles, permissions, and access policy on-chain** via `PolicyEngine`, backed by Hardhat tests.
+- Represents DID-owned resources as secured **ERC-721-style assets** (`AssetNFT`).
+- Writes **immutable audit events** through a dedicated `AuditLogger` contract.
+- Authenticates with **Sign-In with Ethereum (SIWE)** — nonce + persistent sessions.
+- Runs a **deterministic Security Agent** on every indexed event, with optional Gemini enrichment for natural-language reasoning.
+- On a confirmed incident, calls **on-chain freeze/unfreeze** through a backend transaction signer and returns the transaction hash to the UI.
+- Builds **integrity-hashed forensic snapshots** per transaction (`/audit/forensic/{transaction_hash}`).
+- Generates a **DPDP (India's Digital Personal Data Protection Act) evidence report** straight from indexed events and findings.
+- Computes a **live insurance-style risk score** from incidents, findings, and denied events.
+- Presents all of it — identity, policy, resources, assets, audit trail, security incidents, AI explanations, and compliance reports — in a React operations console.
 
 ## Architecture
 
 ```text
-		    +----------------------+
-		    |   React + Vite UI    |
-		    | Dashboard and ops UI  |
-		    +----------+-----------+
-			       |
-			       | HTTP / JSON
-			       v
-		    +----------------------+
-		    |   FastAPI backend    |
-		    | Routers and services  |
-		    +------+-----------+---+
-			   |           |
-		   SQLAlchemy       Web3 / ethers
-			   |           |
-			   v           v
-		 +----------------+  +----------------------+
-			  | PostgreSQL     |  | Local Hardhat RPC    |
-		 | findings,      |  | deployed contracts   |
-		 | sessions,      |  +----------------------+
-		 | events, audit  |
-		 +----------------+
-
-		 Solidity contracts via Hardhat
-       DIDRegistry | PolicyEngine | AssetNFT | AuditLogger
+Identity -> Role -> Permission -> Resource -> PolicyEngine
+         -> ALLOW / DENY -> Audit evidence -> SecurityAgent
+         -> Risk -> Incident response -> PolicyEngine freeze
+         -> Forensics / Copilot / DPDP report -> Restore
 ```
+
+```text
+                +----------------------+
+                |   React + Vite UI    |
+                | Security console, UX |
+                +----------+-----------+
+                           |
+                           | HTTP / JSON
+                           v
+                +----------------------+
+                |   FastAPI backend    |
+                | Auth, workflow, AI    |
+                +------+-----------+---+
+                       |           |
+               SQLAlchemy       Web3 / ethers
+                       |           |
+                       v           v
+             +----------------+  +----------------------+
+             | PostgreSQL     |  | Local Hardhat RPC    |
+             | findings,      |  | deployed contracts   |
+             | sessions,      |  +----------------------+
+             | events, audit  |
+             +----------------+
+
+             Solidity contracts via Hardhat
+   DIDRegistry | PolicyEngine | AssetNFT | AuditLogger
+```
+
+**Design principle:** the blockchain is the final enforcement and confirmation boundary. FastAPI owns authorization, evidence ingestion, incident response, and reporting logic. Gemini is optional server-side *explanation* only — it never makes an enforcement decision. React never treats its own local state as blockchain truth; every state shown is confirmed from the backend.
 
 ### Repository layout
 
 | Path | Purpose |
 | --- | --- |
-| `contracts/` | Solidity contracts for identity, policy, assets, and audit events |
+| `contracts/` | Solidity contracts — identity, policy, assets, audit events |
 | `test/` | Hardhat contract and security tests |
 | `scripts/` | Local and optional deployment scripts |
-| `backend/app/` | FastAPI application, services, repositories, indexer, and models |
+| `backend/app/` | FastAPI app: services, repositories, indexer, models |
+| `backend/app/services/forensic_audit.py` | Integrity-hashed forensic snapshot builder |
+| `backend/app/services/security_reporting.py` | Risk score + DPDP evidence report generation |
 | `backend/alembic/` | PostgreSQL migration history |
 | `backend/tests/` | API, indexer, and security-agent tests |
-| `frontend/src/` | React pages, components, API services, and types |
-| `artifacts/` and `types/` | Generated Hardhat artifacts and TypeScript contract types |
+| `frontend/src/pages/` | Dashboard, Identity, Policies, Assets, Audit, Security Center, AI Security, Compliance |
+| `docs/LOCAL-DEMO.md` | Exact step-by-step local demo script |
 
-## Implementation Status
+## What's real vs. what's next
 
-### Completed
+We'd rather be precise about this than oversell it.
 
-| Area | Status | What is implemented |
-| --- | --- | --- |
-| Architecture | Done | Backend, frontend, blockchain, and database structure |
-| DID Registry | Done locally | DID creation and resolution, duplicate prevention, and invalid-input validation |
-| Key rotation | Done locally | Controller authorization and verification-key rotation |
-| PolicyEngine / RBAC | Done locally | Roles, permissions, authorization logic, and Hardhat tests |
-| Access control | Done locally | PolicyEngine checks and backend authorization service |
-| AssetNFT | Done locally | Minting, DID ownership, transfers, and security checks |
-| AuditLogger | Done locally | Immutable audit-event contract architecture |
-| FastAPI | Done | Routers, services, API structure, health endpoints, and Swagger documentation |
-| PostgreSQL | Done locally | Docker PostgreSQL and SQLAlchemy repositories |
-| Alembic | Done locally | Persistence schema and migrations applied |
-| SIWE | Done locally | Nonce, signature verification, and persistent sessions |
-| React frontend | Done | Main UI and application pages |
-| Dashboard | Done | Security and system overview |
-| Identity | Done | Identity management UI |
-| Policies | Done | RBAC and policy UI |
-| Resources | Done | Resource workflow and corrected router |
-| Assets | Done | Asset management UI |
-| Audit | Done | Audit interface |
-| Recovery / Sentinel | Done locally | Recovery workflow and persistence |
-| Security Center | Done locally | Incident review, confirmed freeze/unfreeze status, transaction hash, risk, findings, and restore action |
-| Deterministic Security Agent | Done | Rule-based risk detection |
-| Gemini Security Agent | Done locally | Deterministic analysis always works; Gemini enrichment runs when `GEMINI_API_KEY` is configured |
-| Security Findings | Done | Findings persisted in PostgreSQL |
-| Trust / Risk Graph | Core done, UI verified | Evidence relationships generated by the API and displayed as nodes and relationships |
-| Event ingestion | Core done | Normalized blockchain events sent to repositories and security analysis |
-| Local RPC | Connected | Hardhat chain `31337` and deployed contracts verified |
-| DPDP evidence report | Done locally | UI report backed by indexed events, findings, incidents, controls, risk, and evidence gaps |
-| Insurance risk score | Done locally | Backend-derived score exposed in Security Center |
+### Working end-to-end today (verified locally, Hardhat `chainId 31337`)
 
-### Remaining before release
+- DID registry, key rotation, PolicyEngine/RBAC, AssetNFT, AuditLogger — all with Hardhat tests
+- SIWE authentication with persistent sessions
+- Full attack → denial → audit evidence → SecurityAgent → incident → **on-chain freeze/unfreeze** → restore loop
+- Forensic snapshot generation, DPDP evidence report, backend-derived insurance risk score
+- Deterministic security analysis (always on) with optional Gemini enrichment when `GEMINI_API_KEY` is set
 
-| Area | Status | Remaining work |
-| --- | --- | --- |
-| Attack simulation | Done locally | Controlled synthetic scenarios use the protected demo API and create real denial evidence |
-| Risk-based adaptive access | Partial | Existing workflow exposes allow, step-up, deny, and suspension states; broader policy authoring remains limited |
-| Policy impact simulator | Partial | Finish simulator APIs and UI |
-| Real blockchain listener | Partial | Local indexed event path is verified; external-chain streaming is out of scope |
-| Full E2E attack flow | Done locally | Attack -> denial -> audit -> SecurityAgent -> incident -> local freeze/unfreeze is verified |
-| Performance testing | Remaining | Add load, latency, and throughput testing |
-| Final documentation | Partial | Add final architecture and deployment runbooks |
-| External-chain deployment | Out of scope | This MVP is locked to the local Hardhat network |
-| Production PostgreSQL | Not started | Provision and secure a hosted database |
-| Public backend | Not started | Deploy the API outside the Codespace |
-| Public frontend | Not started | Deploy the UI outside the Codespace |
-| Final Git release | Paused | Intentionally waiting until the remaining product work is complete |
+### Explicitly in progress / next
 
-## Local Development
+- Risk-based adaptive access — allow/step-up/deny states exist; broader policy authoring is still limited
+- Policy impact simulator — API and UI in progress
+- Real-time external-chain event listener (current path is local indexed events, verified)
+- Load/latency/throughput testing
+- Public testnet deployment and hosted backend/frontend — **intentionally out of scope for this MVP**; see [`docs/LOCAL-DEMO.md`](docs/LOCAL-DEMO.md) for why the local demo is the authoritative one
 
-### Prerequisites
+We're not claiming a mainnet deployment we don't have. We are claiming a working, evidence-backed enforcement loop that a judge can run start-to-finish in a few minutes.
 
-- Node.js and npm
-- Python 3.11+ with a virtual environment
-- Docker
-- A PostgreSQL container for local persistence
-- Optional: a Gemini API key for Gemini-backed assessments
+## Run the demo locally
 
-### Install dependencies
+No wallet, no Polygon key, no gas required.
 
 ```bash
-npm install
-cd frontend && npm install
-cd ../backend
-python -m venv .venv
-source .venv/bin/activate
+# 1. Contracts + local chain
+npx hardhat node
+# in a second terminal:
+npx hardhat test
+
+# 2. Backend
+cd backend
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-### Configure the environment
-
-Create a `.env` file using the local values appropriate for your environment. The backend reads settings such as:
-
-```dotenv
-DATABASE_URL=postgresql+psycopg://trustmesh:trustmesh_dev_password@localhost:5432/trustmesh
-TRUSTMESH_LOCAL=true
-TRUSTMESH_RPC_URL=http://127.0.0.1:8545
-TRUSTMESH_CHAIN_ID=31337
-SIWE_CHAIN_ID=31337
-SIWE_DOMAIN=localhost
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.6-flash
-DEPLOYER_PRIVATE_KEY=
-DID_REGISTRY_ADDRESS=
-POLICY_ENGINE_ADDRESS=
-ASSET_NFT_ADDRESS=
-AUDIT_LOGGER_ADDRESS=
-```
-
-Never commit private keys or API keys. The deployer key is used only by the local backend signer for confirmed PolicyEngine transactions.
-
-### Start PostgreSQL and apply migrations
-
-The expected local container is named `trustmesh-postgres`:
-
-```bash
-docker start trustmesh-postgres
-cd backend
-source .venv/bin/activate
 alembic upgrade head
-```
-
-### Start the backend
-
-```bash
-cd backend
-source .venv/bin/activate
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-```
 
-Backend endpoints:
-
-- Health: `http://localhost:8000/health`
-- OpenAPI UI: `http://localhost:8000/docs`
-- OpenAPI JSON: `http://localhost:8000/openapi.json`
-
-### Start the frontend
-
-```bash
+# 3. Frontend
 cd frontend
+npm install
 npm run dev
 ```
 
-Vite prints the local frontend URL, normally `http://localhost:5173`.
+Then follow [`docs/LOCAL-DEMO.md`](docs/LOCAL-DEMO.md):
 
-## Testing
+1. Open `/attack`, launch a scenario against the protected Admin Console — it's denied before it succeeds.
+2. Open `/security` — see identity, role, resource, severity, risk score, and evidence timeline for the incident.
+3. Choose **Suspend** or **Block** — the backend calls `PolicyEngine.setResourceFreeze()` and returns a real transaction hash.
+4. Choose **Unblock / Restore** — confirms `frozen=false` on-chain.
+5. Open `/audit`, `/ai-security`, and `/compliance` — indexed evidence, AI explanation, and the DPDP report, all traced back to the same incident.
 
-Run Solidity tests from the repository root:
-
-```bash
-npx hardhat test
-```
-
-Run backend tests from `backend/` with the virtual environment active:
-
-```bash
-pytest
-```
-
-Build and lint the frontend:
-
-```bash
-cd frontend
-npm run build
-npm run lint
-```
-
-## Local Demo Flow
-
-1. Start `npx hardhat node` and use the existing local deployment.
-2. Start FastAPI on port `8000` and the frontend with `npm run dev`.
-3. Open `Attack Demo`, launch a synthetic Admin Console scenario, and inspect the denial evidence.
-4. Open `Security Center`, select the incident, and choose `Suspend` or `Block`.
-5. Confirm the `confirmed` PolicyEngine transaction and transaction hash in the enforcement panel.
-6. Use `Unblock / Restore` to send the existing `ACCEPT` workflow and confirm `frozen=false`.
-7. Review indexed evidence in `Audit Log`, AI explanation in `AI Security`, and the evidence report in `DPDP Report`.
-
-The backend keeps deterministic security analysis authoritative. Gemini is an optional server-side explanation layer and never makes policy or enforcement decisions.
-4. The resulting contract addresses written to the backend environment.
-
-Until that work is complete, contract functionality should be treated as locally tested rather than publicly deployed.
-
-## Security Model
-
-TrustMesh uses layered controls:
+## Security model
 
 - Smart contracts enforce identity ownership, controller authorization, policy checks, asset ownership, and audit-event integrity.
-- The backend applies service-level authorization and persists sessions, events, findings, and recovery state.
-- The deterministic agent provides repeatable rule-based detection.
-- The Gemini agent adds structured reasoning to security assessments when configured.
-- The trust/risk graph connects findings to the evidence and relationships that produced them.
+- The backend applies service-level authorization and owns sessions, events, findings, and incident state.
+- The deterministic agent guarantees repeatable rule-based detection — Gemini enrichment never replaces it.
+- Every finding traces back through the trust/risk graph to the evidence that produced it.
 
-AI assessments are advisory analysis. They do not replace smart-contract validation or backend authorization checks.
+AI assessments are advisory. They explain and recommend — they never bypass smart-contract validation or backend authorization.
+
+## Team / Problem statement
+
+Built for **SIH PS 26125 — Blockchain-Based Secure Platform for Identity, Access Control, and Digital Asset Management.**
 
 ## License
 
