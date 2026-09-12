@@ -65,6 +65,42 @@ def test_audit_events_returns_indexed_event():
     assert event["block_number"] == 100
     assert event["data"]["action"] == "read"
 
+
+def test_forensic_snapshot_groups_transaction_evidence():
+    for log_index, event_name in enumerate(("AccessDenied", "PolicyRejected")):
+        response = client.post(
+            "/audit/events",
+            json={
+                "event_name": event_name,
+                "contract_address": "0x123",
+                "transaction_hash": "0xforensic",
+                "block_number": 100,
+                "log_index": log_index,
+                "data": {"action": "transfer", "risk_score": 90},
+            },
+        )
+        assert response.status_code == 200
+
+    response = client.get("/audit/forensic/0xforensic")
+
+    assert response.status_code == 200
+    snapshot = response.json()
+    assert snapshot["schema_version"] == "1.0"
+    assert snapshot["transaction_hash"] == "0xforensic"
+    assert len(snapshot["events"]) == 2
+    assert snapshot["events"][0]["log_index"] == 0
+    assert snapshot["events"][1]["log_index"] == 1
+    assert snapshot["integrity"]["algorithm"] == "SHA-256"
+    assert len(snapshot["integrity"]["hash"]) == 64
+
+
+def test_forensic_snapshot_returns_404_for_unknown_transaction():
+    response = client.get("/audit/forensic/0xmissing")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "AUDIT_TRANSACTION_NOT_FOUND"
+
+
 def test_security_agent_analyzes_normal_event():
     response = client.post(
         "/security/analyze",
