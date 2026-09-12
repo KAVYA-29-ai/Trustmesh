@@ -1,7 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.indexer.events import BlockchainEvent
 from app.indexer.service import indexer_service
+from app.services.forensic_audit import forensic_audit_service
 
 router = APIRouter()
 
@@ -27,6 +28,20 @@ async def list_audit_events() -> dict:
             for event in events
         ],
     }
+
+
+@router.get("/forensic/{transaction_hash}")
+async def get_forensic_snapshot(transaction_hash: str) -> dict:
+    try:
+        return forensic_audit_service.build_snapshot(
+            indexer_service.get_events(),
+            transaction_hash,
+        )
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="AUDIT_TRANSACTION_NOT_FOUND",
+        ) from exc
 
 
 @router.post("/events")
