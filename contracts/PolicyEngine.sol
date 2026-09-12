@@ -23,9 +23,9 @@ pragma solidity ^0.8.28;
  *     permission target. bytes32(0) is the mapping's default "no role
  *     assigned" value — allowing permissions to be defined for it would
  *     silently grant that permission to every DID with no role at all.
- *     This was a latent hole in the original data model, not a feature
- *     request; closed without asking since it's a correctness issue,
- *     not a design choice.
+ *     This was a latent hole in the data model, not a feature request;
+ *     closed without asking since it's a correctness issue, not a design
+ *     choice.
  *
  *  4. Resource/Permission structs are now backed by real storage and
  *     Admin-gated write functions, not just declared-and-unused. They
@@ -64,8 +64,8 @@ pragma solidity ^0.8.28;
  *     encoding.
  *
  *  7. FIX (docs/SECURITY.md Section 3.8): `revokeRole()` was gated by
- *     `onlyOrgAdmin` alone, with no check on what role the *target*
- *     held — unlike `assignRole()`, which explicitly requires
+ *     `onlyOrgAdmin` alone, with no check on what role the *target* held
+ *     — unlike `assignRole()`, which explicitly requires
  *     `msg.sender == superAdmin` before it will grant `ADMIN_ROLE`.
  *     That asymmetry meant any org Admin could call
  *     `revokeRole(orgId, otherAdminDid)` and strip a peer Admin's role
@@ -92,62 +92,38 @@ pragma solidity ^0.8.28;
  *                        arrows in ARCHITECTURE.md Section 3.
  */
 contract PolicyEngine {
-    // ================================================================
-    // Role constants — shared bytes32 IDs, always used together with an
-    // orgId in storage, so the same constant naturally stays isolated
-    // per organization.
-    // ================================================================
-
     bytes32 public constant SUPER_ADMIN_ROLE = keccak256("SUPER_ADMIN_ROLE");
     bytes32 public constant ADMIN_ROLE       = keccak256("ADMIN_ROLE");
     bytes32 public constant MANAGER_ROLE     = keccak256("MANAGER_ROLE");
     bytes32 public constant AUDITOR_ROLE     = keccak256("AUDITOR_ROLE");
     bytes32 public constant USER_ROLE        = keccak256("USER_ROLE");
 
-    // ================================================================
-    // Data model — ARCHITECTURE.md Section 4.1
-    // ================================================================
-
     struct Resource {
-        bytes32 resourceId;       // keccak256("nft:1234") | keccak256("api:/reports") | keccak256("door:4B")
-        string  resourceType;     // "NFT" | "API" | "DOCUMENT" | "PHYSICAL" | "CUSTOM"
-        address resourceContract; // optional external contract this resource lives in
-        bool    exists;           // distinguishes "registered, empty fields" from "never registered"
+        bytes32 resourceId;
+        string  resourceType;
+        address resourceContract;
+        bool    exists;
     }
 
     struct Permission {
-        bytes32 permissionId;     // keccak256("MINT:NFT") | keccak256("READ:DOCUMENT")
-        string  action;           // "CREATE" | "READ" | "UPDATE" | "DELETE" | "TRANSFER" | "APPROVE" | custom
+        bytes32 permissionId;
+        string  action;
         string  resourceType;
         bool    exists;
     }
 
-    // orgId => resourceId => permissionIds attached to that resource (console metadata only)
     mapping(bytes32 => mapping(bytes32 => bytes32[])) public resourcePolicies;
-
-    // orgId => resourceId => Resource
     mapping(bytes32 => mapping(bytes32 => Resource)) public resources;
-
-    // orgId => permissionId => Permission
     mapping(bytes32 => mapping(bytes32 => Permission)) public permissionRegistry;
-
-    // orgId => did (address) => roleId
     mapping(bytes32 => mapping(address => bytes32)) public roleAssignments;
-
-    // orgId => roleId => permissionId => granted?
     mapping(bytes32 => mapping(bytes32 => mapping(bytes32 => bool))) public rolePermissions;
 
-    // ================================================================
-    // Access control state
-    // ================================================================
+    // orgId => DID => resourceId => frozen
+    mapping(bytes32 => mapping(address => mapping(bytes32 => bool))) public frozenResources;
 
     address public superAdmin;
     mapping(bytes32 => bool) public orgRegistered;
     bool public paused;
-
-    // ================================================================
-    // Events — every state change emits, per your audit-via-events rule
-    // ================================================================
 
     event OrgRegistered(bytes32 indexed orgId, address indexed initialAdmin);
     event RoleAssigned(bytes32 indexed orgId, address indexed did, bytes32 roleId, address indexed grantedBy);
@@ -155,13 +131,10 @@ contract PolicyEngine {
     event ResourceRegistered(bytes32 indexed orgId, bytes32 indexed resourceId, string resourceType, address resourceContract);
     event PermissionDefined(bytes32 indexed orgId, bytes32 indexed permissionId, string action, string resourceType);
     event PermissionAttachedToResource(bytes32 indexed orgId, bytes32 indexed resourceId, bytes32 permissionId);
+    event ResourceFreezeChanged(bytes32 indexed orgId, address indexed did, bytes32 indexed resourceId, bool frozen, address changedBy);
     event SuperAdminTransferred(address indexed previousSuperAdmin, address indexed newSuperAdmin);
     event Paused(address indexed by);
     event Unpaused(address indexed by);
-
-    // ================================================================
-    // Modifiers
-    // ================================================================
 
     modifier onlySuperAdmin() {
         require(msg.sender == superAdmin, "ONLY_SUPER_ADMIN");
@@ -191,38 +164,23 @@ contract PolicyEngine {
         superAdmin = _superAdmin;
     }
 
-    // ================================================================
-    // CORE_ACCESS_CALL — the one function everything routes through.
-    // Deliberately has NO access-control modifier and is unaffected by
-    // pause: every gated resource in the system depends on this being
-    // callable at all times.
-    // ================================================================
-
     function checkAccess(
         bytes32 orgId,
         address did,
         bytes32 resourceId,
         string calldata action
     ) external view returns (bool) {
+        if (frozenResources[orgId][did][resourceId]) return false;
+
         bytes32 roleId = roleAssignments[orgId][did];
         if (roleId == bytes32(0)) return false;
         bytes32 permId = computePermissionId(action, resourceId);
         return rolePermissions[orgId][roleId][permId];
     }
 
-    /// @notice The exact key `checkAccess()` looks up under
-    /// `rolePermissions`. Exposed as `public pure` so `setRolePermission()`
-    /// can share it (see fix #6 above) and so off-chain callers
-    /// (ADMIN_CONSOLE_NAME's PolicyBuilder, the indexer) can derive the
-    /// identical id for display without re-implementing the encoding and
-    /// risking drift.
     function computePermissionId(string calldata action, bytes32 resourceId) public pure returns (bytes32) {
         return keccak256(abi.encodePacked(action, resourceId));
     }
-
-    // ================================================================
-    // Org bootstrap — superAdmin only
-    // ================================================================
 
     function registerOrg(bytes32 orgId, address initialAdmin) external onlySuperAdmin whenNotPaused {
         require(orgId != bytes32(0), "INVALID_ORG_ID");
@@ -252,16 +210,6 @@ contract PolicyEngine {
         emit Unpaused(msg.sender);
     }
 
-    // ================================================================
-    // Role assignment
-    // ================================================================
-
-    /// @notice Assigns a role to a DID within an org.
-    /// Org Admins may assign MANAGER_ROLE, AUDITOR_ROLE, USER_ROLE, or
-    /// any custom (non-reserved) roleId. Only superAdmin may assign or
-    /// change ADMIN_ROLE — matches the hierarchy diagram, where ADMIN
-    /// grants downward to Manager/Auditor/User but Super Admin is the
-    /// only one who "sets first Admin."
     function assignRole(bytes32 orgId, address did, bytes32 roleId) external whenNotPaused orgExists(orgId) {
         require(did != address(0), "ZERO_DID");
         require(roleId != bytes32(0), "INVALID_ROLE");
@@ -280,13 +228,6 @@ contract PolicyEngine {
         emit RoleAssigned(orgId, did, roleId, msg.sender);
     }
 
-    /// @notice Convenience wrapper — revokes any role by resetting to
-    /// the default "no role" value. Equivalent to assignRole(orgId, did,
-    /// bytes32(0)) but avoids callers having to know that convention.
-    /// @dev FIX (see changelog #7): mirrors assignRole()'s guard — only
-    /// superAdmin may revoke ADMIN_ROLE. Without this, `onlyOrgAdmin`
-    /// let any Admin strip any other Admin's role, bypassing the exact
-    /// safeguard assignRole() builds for granting it.
     function revokeRole(bytes32 orgId, address did) external whenNotPaused orgExists(orgId) onlyOrgAdmin(orgId) {
         if (roleAssignments[orgId][did] == ADMIN_ROLE) {
             require(msg.sender == superAdmin, "ONLY_SUPER_ADMIN_REVOKES_ADMIN");
@@ -295,15 +236,6 @@ contract PolicyEngine {
         emit RoleAssigned(orgId, did, bytes32(0), msg.sender);
     }
 
-    // ================================================================
-    // Role-permission grants
-    // ================================================================
-
-    /// @notice Grants or revokes `roleId`'s permission to perform `action`
-    /// on `resourceId`. Takes `(action, resourceId)` rather than a raw
-    /// `permissionId` — see fix #6 above — so the stored key is always
-    /// exactly what `checkAccess()` will look up; there's no longer a way
-    /// to grant a permission under a key `checkAccess()` can never match.
     function setRolePermission(
         bytes32 orgId,
         bytes32 roleId,
@@ -317,9 +249,20 @@ contract PolicyEngine {
         emit RolePermissionSet(orgId, roleId, permissionId, granted);
     }
 
-    // ================================================================
-    // Resource / Permission registry — console metadata, not enforcement
-    // ================================================================
+    /// @notice Freezes or unfreezes one DID for one resource.
+    /// A freeze is enforced by checkAccess() before role/permission checks.
+    function setResourceFreeze(
+        bytes32 orgId,
+        address did,
+        bytes32 resourceId,
+        bool frozen
+    ) external whenNotPaused orgExists(orgId) onlyOrgAdmin(orgId) {
+        require(did != address(0), "ZERO_DID");
+        require(resourceId != bytes32(0), "INVALID_RESOURCE_ID");
+
+        frozenResources[orgId][did][resourceId] = frozen;
+        emit ResourceFreezeChanged(orgId, did, resourceId, frozen, msg.sender);
+    }
 
     function registerResource(
         bytes32 orgId,
@@ -359,9 +302,6 @@ contract PolicyEngine {
         emit PermissionDefined(orgId, permissionId, action, resourceType);
     }
 
-    /// @notice Records that a permission is relevant to a resource, for
-    /// the no-code console to display. Purely informational — does NOT
-    /// affect checkAccess(), which only ever reads rolePermissions.
     function attachPermissionToResource(
         bytes32 orgId,
         bytes32 resourceId,
@@ -380,9 +320,7 @@ contract PolicyEngine {
 }
 
 /**
- * Usage example (matches ARCHITECTURE.md Section 4.1's mintAsset snippet,
- * with the address-typed did — resource contracts call checkAccess exactly
- * as before, nothing here changes their integration):
+ * Usage example:
  *
  *   function mintAsset(address did, string memory metadataURI) external {
  *       require(
