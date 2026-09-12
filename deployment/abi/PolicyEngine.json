@@ -93,6 +93,38 @@
     {
       "type": "event",
       "anonymous": false,
+      "name": "ResourceFreezeChanged",
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId",
+          "indexed": true
+        },
+        {
+          "type": "address",
+          "name": "did",
+          "indexed": true
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceId",
+          "indexed": true
+        },
+        {
+          "type": "bool",
+          "name": "frozen",
+          "indexed": false
+        },
+        {
+          "type": "address",
+          "name": "changedBy",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
       "name": "ResourceRegistered",
       "inputs": [
         {
@@ -393,6 +425,33 @@
     },
     {
       "type": "function",
+      "name": "frozenResources",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        },
+        {
+          "type": "address",
+          "name": ""
+        },
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
       "name": "getResourcePermissions",
       "constant": true,
       "stateMutability": "view",
@@ -660,6 +719,31 @@
           "name": ""
         }
       ]
+    },
+    {
+      "type": "function",
+      "name": "setResourceFreeze",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId"
+        },
+        {
+          "type": "address",
+          "name": "did"
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceId"
+        },
+        {
+          "type": "bool",
+          "name": "frozen"
+        }
+      ],
+      "outputs": []
     },
     {
       "type": "function",

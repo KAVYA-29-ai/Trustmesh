@@ -32,10 +32,8 @@ class Settings(BaseSettings):
     asset_nft_address: str | None = None
     audit_logger_address: str | None = None
 
-    azure_openai_endpoint: str | None = None
-    azure_openai_api_key: str | None = None
-    azure_openai_api_version: str = "2024-10-21"
-    azure_openai_deployment: str | None = None
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.0-flash"
 
     cors_origins: str = "http://localhost:5173"
 

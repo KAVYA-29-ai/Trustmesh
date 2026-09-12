@@ -13,6 +13,7 @@ from app.indexer.service import indexer_service
 from app.services.security_workflow import security_workflow
 from app.blockchain.adapters.policy_engine import PolicyEngineAdapter
 from app.blockchain.client import blockchain_client
+from app.services.security_reporting import build_dpdp_report, build_risk_score
 
 router = APIRouter()
 
@@ -33,49 +34,6 @@ def serialize_event(event) -> dict:
         "attack_type": event.attack_type,
         "action": event.action,
         "decision": event.decision,
-    }
-
-
-def _enforce_incident_decision(incident: dict, decision: str) -> dict:
-    """Apply the approved Security Center decision to PolicyEngine."""
-    normalized = decision.upper()
-    frozen = normalized in {"SUSPEND", "BLOCK"}
-
-    if not blockchain_client.is_configured():
-        return {
-            "status": "not_configured",
-            "frozen": frozen,
-        }
-
-    if not blockchain_client.is_connected():
-        return {
-            "status": "not_connected",
-            "frozen": frozen,
-        }
-
-    did = str(incident.get("identity") or "")
-    org_id = str(incident.get("org_id") or "acme-organization")
-    resource_id = str(incident.get("resource_id") or incident.get("resource") or "")
-
-    if not Web3.is_address(did):
-        raise ValueError("incident identity is not a valid Ethereum address")
-    if not resource_id:
-        raise ValueError("incident resource is missing")
-
-    adapter = PolicyEngineAdapter(blockchain_client)
-    tx_hash = adapter.set_resource_freeze(
-        Web3.keccak(text=org_id),
-        Web3.to_checksum_address(did),
-        Web3.keccak(text=resource_id),
-        frozen,
-    )
-
-    return {
-        "status": "confirmed",
-        "frozen": frozen,
-        "transaction_hash": tx_hash,
-        "org_id": org_id,
-        "resource_id": resource_id,
     }
 
 
@@ -186,8 +144,7 @@ async def decide_incident(
             incident_id,
             payload.decision,
         )
-        blockchain = _enforce_incident_decision(incident, payload.decision)
-        result["on_chain_enforcement"] = blockchain
+        result["on_chain_enforcement"] = result.get("on_chain_enforcement")
     except ValueError as exc:
         status_code = 404 if "not found" in str(exc) else 400
         raise HTTPException(status_code=status_code, detail=str(exc)) from exc
@@ -213,6 +170,22 @@ async def get_security_identity_status(did: str) -> dict:
 @router.get("/copilot")
 async def get_copilot_analysis() -> dict:
     return security_workflow.copilot()
+
+
+@router.get("/risk-score")
+async def get_risk_score() -> dict:
+    with SessionLocal() as db:
+        events = db.scalars(select(AuditEvent).order_by(AuditEvent.timestamp.desc())).all()
+        findings = db.scalars(select(SecurityFinding).order_by(SecurityFinding.created_at.desc())).all()
+    return build_risk_score(security_workflow.list_incidents(), findings, events)
+
+
+@router.get("/reports/dpdp")
+async def get_dpdp_report() -> dict:
+    with SessionLocal() as db:
+        events = db.scalars(select(AuditEvent).order_by(AuditEvent.timestamp.desc())).all()
+        findings = db.scalars(select(SecurityFinding).order_by(SecurityFinding.created_at.desc())).all()
+    return build_dpdp_report(security_workflow.list_incidents(), findings, events)
 
 
 @router.get("/workflow-graph")

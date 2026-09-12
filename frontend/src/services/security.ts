@@ -5,6 +5,8 @@ import type {
   RiskGraphResponse,
   SecurityIncident,
   SecurityCopilotResponse,
+  SecurityRiskResponse,
+  DpdpReportResponse,
 } from "../types/api";
 
 export async function getSecurityCenter(): Promise<SecurityResponse> {
@@ -31,6 +33,14 @@ export async function getSecurityCopilot(): Promise<SecurityCopilotResponse> {
   return api.get<SecurityCopilotResponse>("/security/copilot");
 }
 
+export async function getSecurityRisk(): Promise<SecurityRiskResponse> {
+  return api.get<SecurityRiskResponse>("/security/risk-score");
+}
+
+export async function getDpdpReport(): Promise<DpdpReportResponse> {
+  return api.get<DpdpReportResponse>("/security/reports/dpdp");
+}
+
 export async function getIdentitySecurityStatus(
   did: string,
 ): Promise<{ identity: string; status: string }> {
@@ -42,6 +52,12 @@ export async function getIdentitySecurityStatus(
 export async function decideSecurityIncident(
   incidentId: string,
   decision: "ACCEPT" | "SUSPEND" | "BLOCK",
-): Promise<{ decision: { status: string; decision: string } }> {
+): Promise<{
+  decision: {
+    status: string;
+    decision: string;
+    on_chain_enforcement?: { status: string; transaction_hash?: string };
+  };
+}> {
   return api.post(`/security/incidents/${encodeURIComponent(incidentId)}/decision`, { decision });
 }

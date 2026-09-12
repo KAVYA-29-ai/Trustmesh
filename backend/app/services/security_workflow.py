@@ -5,12 +5,22 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from sqlalchemy import select
+from web3 import Web3
 
+from app.blockchain.adapters.policy_engine import PolicyEngineAdapter
+from app.blockchain.client import blockchain_client
+from app.db.models import AuditEvent
+from app.db.session import SessionLocal
 from app.indexer.events import BlockchainEvent
 from app.indexer.service import indexer_service
 from app.models.common import AccessCheckRequest
-from app.db.models import AuditEvent
-from app.db.session import SessionLocal
+from app.services.security_agent import security_agent
+
+
+SEEDED_DEMO_IDENTITY_ADDRESSES = {
+    "did:trustmesh:security": "0x0000000000000000000000000000000000000002",
+    "did:trustmesh:admin": "0x0000000000000000000000000000000000000001",
+}
 
 
 @dataclass
@@ -161,12 +171,20 @@ class SecurityWorkflowService:
                 "violations": violation_count,
                 "reason": "PolicyEngine denied the requested action.",
                 "description": description,
-                "suspension_state": (
-                    state.status.title()
-                ),
-                    "identity_status": state.status,
+                "suspension_state": state.status.title(),
+                "identity_status": state.status,
             },
         )
+
+        ai_analysis = security_agent.analyze(event)
+
+        event.data["ai_analysis"] = {
+            "threat_detected": ai_analysis.threat_detected,
+            "risk_score": ai_analysis.risk_score,
+            "severity": ai_analysis.severity,
+            "reason": ai_analysis.reason,
+            "recommendation": ai_analysis.recommendation,
+        }
 
         self.event_sink(event)
 
@@ -194,6 +212,7 @@ class SecurityWorkflowService:
             "incident_id": incident["incident_id"],
             "status": status,
             "synthetic": synthetic,
+            "ai_analysis": event.data["ai_analysis"],
         }
 
     def restore_identity(
@@ -298,6 +317,9 @@ class SecurityWorkflowService:
             raise ValueError("incident not found")
 
         did = incident["identity"]
+        frozen = normalized in {"SUSPEND", "BLOCK"}
+        on_chain_enforcement = self._enforce_on_chain(incident, frozen)
+
         state = self.identities.setdefault(did, IdentityState())
         previous_status = state.status
         if normalized == "SUSPEND":
@@ -326,6 +348,7 @@ class SecurityWorkflowService:
                     "decision": normalized,
                     "previous_state": previous_status,
                     "current_state": state.status,
+                    "on_chain_enforcement": on_chain_enforcement,
                     "reason": "Human decision confirmed in Security Center.",
                 },
             )
@@ -344,7 +367,66 @@ class SecurityWorkflowService:
             "previous_state": previous_status,
             "status": state.status,
             "event_id": event_id,
+            "on_chain_enforcement": on_chain_enforcement,
         }
+
+    def _enforce_on_chain(self, incident: dict, frozen: bool) -> dict:
+        """Apply the human security decision to PolicyEngine resource freeze."""
+        if not blockchain_client.is_configured():
+            return {
+                "status": "not_configured",
+                "frozen": frozen,
+            }
+
+        if not blockchain_client.is_connected():
+            return {
+                "status": "not_connected",
+                "frozen": frozen,
+            }
+
+        did = self._resolve_incident_identity(incident)
+        if not Web3.is_address(did):
+            raise ValueError("incident identity must be a valid Ethereum address")
+
+        resource = str(incident.get("resource") or "")
+        resource_id = {
+            "Employee Records": "acme-employee-records",
+            "Admin Console": "acme-admin-console",
+            "Documents": "acme-documents",
+            "Digital Assets": "acme-digital-assets",
+        }.get(resource, resource)
+
+        if not resource_id:
+            raise ValueError("incident resource is required for on-chain enforcement")
+
+        org_id = str(incident.get("org_id") or "acme-organization")
+
+        adapter = PolicyEngineAdapter(blockchain_client)
+
+        tx_hash = adapter.set_resource_freeze(
+            Web3.keccak(text=org_id),
+            Web3.to_checksum_address(did),
+            Web3.keccak(text=resource_id),
+            frozen,
+        )
+
+        return {
+            "status": "confirmed",
+            "frozen": frozen,
+            "transaction_hash": tx_hash,
+            "org_id": org_id,
+            "resource_id": resource_id,
+        }
+
+    @staticmethod
+    def _resolve_incident_identity(incident: dict) -> str:
+        identity = str(incident.get("identity") or "")
+        resolved = SEEDED_DEMO_IDENTITY_ADDRESSES.get(identity, identity)
+
+        if not Web3.is_address(resolved):
+            raise ValueError("incident identity must resolve to a valid Ethereum address")
+
+        return Web3.to_checksum_address(resolved)
 
     def simulate_attack(
         self,
@@ -500,6 +582,7 @@ class SecurityWorkflowService:
                     or data.get("decision")
                     or "DENY"
                 ),
+                "ai_analysis": data.get("ai_analysis") or {},
                 "status": identity_status,
                 "suspended": identity_status == "SUSPENDED",
                 "created_at": timestamp,
@@ -1055,6 +1138,7 @@ class SecurityWorkflowService:
             "risk_score": risk_score,
             "severity": severity,
             "decision": event.data["decision"],
+            "ai_analysis": event.data.get("ai_analysis", {}),
             "suspended": state.suspended,
             "created_at": incident_timestamp,
             "evidence": [

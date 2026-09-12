@@ -185,6 +185,25 @@ export interface SecurityFindingsResponse {
   findings: SecurityFinding[];
 }
 
+export interface SecurityRiskResponse {
+  status: string;
+  score: number;
+  risk_level: string;
+  factors: string[];
+  recent_events: number;
+  findings: number;
+  controls: Record<string, boolean>;
+}
+
+export interface DpdpReportResponse {
+  status: string;
+  report_type: string;
+  executive_summary: string;
+  observed_evidence: Record<string, number>;
+  risk_posture: SecurityRiskResponse;
+  evidence_gaps: string[];
+}
+
 export interface RiskGraphNode {
   id: string;
   label: string;

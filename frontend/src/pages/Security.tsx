@@ -10,6 +10,7 @@ import {
   getWorkflowGraph,
   getSecurityIncidents,
   getSecurityCopilot,
+  getSecurityRisk,
   decideSecurityIncident,
 } from "../services/security";
 import type {
@@ -19,6 +20,7 @@ import type {
   RiskGraphResponse,
   SecurityIncident,
   SecurityCopilotResponse,
+  SecurityRiskResponse,
 } from "../types/api";
 
 function severityClass(severity: string): string {
@@ -122,6 +124,7 @@ function Security() {
   const [riskGraph, setRiskGraph] = useState<RiskGraphResponse | null>(null);
   const [incidents, setIncidents] = useState<SecurityIncident[]>([]);
   const [copilot, setCopilot] = useState<SecurityCopilotResponse | null>(null);
+  const [risk, setRisk] = useState<SecurityRiskResponse | null>(null);
   const [decisionLoading, setDecisionLoading] = useState("");
   const [decisionError, setDecisionError] = useState("");
   const [selectedIncidentId, setSelectedIncidentId] = useState<string | null>(null);
@@ -134,9 +137,20 @@ function Security() {
     setDecisionLoading(decision);
     setDecisionError("");
     try {
-      await decideSecurityIncident(selectedIncident.incident_id, decision);
-      const response = await getSecurityIncidents();
-      setIncidents(response.incidents);
+      const decisionResponse = await decideSecurityIncident(selectedIncident.incident_id, decision);
+      const enforcement = decisionResponse.decision.on_chain_enforcement;
+      if (enforcement && enforcement.status !== "confirmed") {
+        setDecisionError(`Decision recorded, but blockchain enforcement is ${enforcement.status}.`);
+      }
+      const [incidentResponse, securityResponse, riskResponse] = await Promise.all([
+        getSecurityIncidents(),
+        getSecurityCenter(),
+        getSecurityRisk(),
+      ]);
+      setIncidents(incidentResponse.incidents);
+      setSummary(securityResponse.summary);
+      setEvents(securityResponse.events);
+      setRisk(riskResponse);
     } catch (requestError) {
       setDecisionError(requestError instanceof Error ? requestError.message : "Unable to record the security decision.");
     } finally {
@@ -148,9 +162,9 @@ function Security() {
     let active = true;
     async function loadSecurity() {
       try {
-        const [securityResponse, findingsResponse, graphResponse, incidentResponse, copilotResponse] = await Promise.all([getSecurityCenter(), getSecurityFindings(), getWorkflowGraph(), getSecurityIncidents(), getSecurityCopilot()]);
+        const [securityResponse, findingsResponse, graphResponse, incidentResponse, copilotResponse, riskResponse] = await Promise.all([getSecurityCenter(), getSecurityFindings(), getWorkflowGraph(), getSecurityIncidents(), getSecurityCopilot(), getSecurityRisk()]);
         if (!active) return;
-        setSummary(securityResponse.summary); setEvents(securityResponse.events); setFindings(findingsResponse.findings); setRiskGraph(graphResponse); setIncidents(incidentResponse.incidents); setCopilot(copilotResponse); setError("");
+        setSummary(securityResponse.summary); setEvents(securityResponse.events); setFindings(findingsResponse.findings); setRiskGraph(graphResponse); setIncidents(incidentResponse.incidents); setCopilot(copilotResponse); setRisk(riskResponse); setError("");
       } catch (requestError) {
         if (active) setError(requestError instanceof Error ? requestError.message : "Unable to load security telemetry.");
       } finally { if (active) setLoading(false); }
@@ -176,6 +190,7 @@ function Security() {
       <SecurityMetric label="ACTIVE INCIDENTS" value={loading ? "—" : incidents.length} detail="Open response records" tone={incidents.length ? "danger" : "success"} />
       <SecurityMetric label="SUSPENDED IDENTITIES" value={loading ? "—" : incidents.filter((incident) => incident.suspended).length} detail="Adaptive restrictions" tone="warning" />
       <SecurityMetric label="RECENT VIOLATIONS" value={loading ? "—" : summary?.blocked_requests ?? 0} detail="Denied by policy" tone="info" />
+      <SecurityMetric label="INSURANCE RISK" value={loading ? "—" : `${risk?.score ?? 0}/100`} detail={risk?.risk_level ?? "Evidence pending"} tone={risk && risk.score >= 65 ? "danger" : "success"} />
       <AttackTimeMetric incident={latestIncident} />
     </section>
     <section className="security-main-grid"><article className="panel security-panel activity-command-panel"><div className="panel-header"><div><div className="panel-kicker">LIVE SECURITY ACTIVITY</div><h2>What is happening now</h2></div><StatusBadge>{`${events.length} events`}</StatusBadge></div>{events.length === 0 ? <div className="resource-empty"><div className="security-state-icon"><Icon name="database" /></div><h3>No active security events</h3><p>Policy and audit telemetry will appear here as it is indexed.</p></div> : <div className="activity-command-list">{events.slice(0, 8).map((event) => <div className="command-event" key={event.event_id}><span className={`command-event-dot ${event.severity.toLowerCase()}`} /><div><strong>{event.event_type}</strong><span>{event.description}</span></div><div className="command-event-meta"><b>{event.decision}</b><small>{event.status}</small></div></div>)}</div>}</article><article className="panel security-panel copilot-panel"><div className="panel-header"><div><div className="panel-kicker">AI SECURITY</div><h2>Threat assessment</h2></div><StatusBadge>{copilot?.provider ?? "Loading"}</StatusBadge></div><div className="copilot-assessment"><span className="copilot-label">CURRENT THREAT</span><strong>{copilot?.what_happened ?? "No current threat assessment"}</strong><span className="copilot-label">WHY IT MATTERS</span><p>{copilot?.why_suspicious ?? "The analyst will explain suspicious behavior when evidence is available."}</p><div className="copilot-risk"><span>RISK ASSESSMENT</span><strong>{copilot?.risk_explanation ?? "No risk evidence"}</strong></div><div className="copilot-recommendation"><span>RECOMMENDED ACTION</span><strong>{copilot?.recommendation ?? "Continue monitoring"}</strong></div></div></article></section>

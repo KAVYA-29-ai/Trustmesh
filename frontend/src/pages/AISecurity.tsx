@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../components/layout/Sidebar";
 import Topbar from "../components/layout/Topbar";
 import Icon from "../components/ui/Icon";
-import StatusBadge from "../components/ui/StatusBadge";
 import {
   getSecurityCopilot,
   getSecurityFindings,
