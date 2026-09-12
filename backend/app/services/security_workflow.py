@@ -5,12 +5,16 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from sqlalchemy import select
+from web3 import Web3
 
+from app.blockchain.adapters.policy_engine import PolicyEngineAdapter
+from app.blockchain.client import blockchain_client
 from app.indexer.events import BlockchainEvent
 from app.indexer.service import indexer_service
 from app.models.common import AccessCheckRequest
 from app.db.models import AuditEvent
 from app.db.session import SessionLocal
+from app.services.security_agent import security_agent
 
 
 @dataclass
@@ -161,12 +165,19 @@ class SecurityWorkflowService:
                 "violations": violation_count,
                 "reason": "PolicyEngine denied the requested action.",
                 "description": description,
-                "suspension_state": (
-                    state.status.title()
-                ),
-                    "identity_status": state.status,
+                "suspension_state": state.status.title(),
+                "identity_status": state.status,
             },
         )
+
+        analysis = security_agent.analyze(event)
+        event.data["ai_analysis"] = {
+            "threat_detected": analysis.threat_detected,
+            "risk_score": analysis.risk_score,
+            "severity": analysis.severity,
+            "reason": analysis.reason,
+            "recommendation": analysis.recommendation,
+        }
 
         self.event_sink(event)
 
@@ -186,14 +197,14 @@ class SecurityWorkflowService:
             "adaptive_state": adaptive_state,
             "allowed": False,
             "suspended": state.suspended,
-            "status": state.status,
+            "status": status,
             "violations": violation_count,
             "risk_score": risk_score,
             "severity": severity,
             "event_id": event_id,
             "incident_id": incident["incident_id"],
-            "status": status,
             "synthetic": synthetic,
+            "ai_analysis": event.data["ai_analysis"],
         }
 
     def restore_identity(
@@ -298,6 +309,9 @@ class SecurityWorkflowService:
             raise ValueError("incident not found")
 
         did = incident["identity"]
+        frozen = normalized in {"SUSPEND", "BLOCK"}
+        on_chain_enforcement = self._enforce_on_chain(incident, frozen)
+
         state = self.identities.setdefault(did, IdentityState())
         previous_status = state.status
         if normalized == "SUSPEND":
@@ -327,6 +341,7 @@ class SecurityWorkflowService:
                     "previous_state": previous_status,
                     "current_state": state.status,
                     "reason": "Human decision confirmed in Security Center.",
+                    "on_chain_enforcement": on_chain_enforcement,
                 },
             )
         )
@@ -336,6 +351,7 @@ class SecurityWorkflowService:
                 item["decision"] = normalized
                 item["status"] = state.status
                 item["suspended"] = state.status == "SUSPENDED"
+                item["on_chain_enforcement"] = on_chain_enforcement
 
         return {
             "incident_id": incident_id,
@@ -344,6 +360,59 @@ class SecurityWorkflowService:
             "previous_state": previous_status,
             "status": state.status,
             "event_id": event_id,
+            "on_chain_enforcement": on_chain_enforcement,
+        }
+
+    def _resource_id_from_incident(self, incident: dict) -> str:
+        resource_id = incident.get("resource_id")
+        if resource_id:
+            return str(resource_id)
+
+        resource = str(incident.get("resource") or "")
+        return {
+            "Employee Records": "acme-employee-records",
+            "Admin Console": "acme-admin-console",
+            "Documents": "acme-documents",
+            "Digital Assets": "acme-digital-assets",
+        }.get(resource, resource)
+
+    def _enforce_on_chain(self, incident: dict, frozen: bool) -> dict:
+        """Apply the human decision to the PolicyEngine when blockchain is configured."""
+        if not blockchain_client.is_configured():
+            return {
+                "status": "not_configured",
+                "frozen": frozen,
+            }
+
+        if not blockchain_client.is_connected():
+            return {
+                "status": "not_connected",
+                "frozen": frozen,
+            }
+
+        did = str(incident.get("identity") or "")
+        if not Web3.is_address(did):
+            raise ValueError("incident identity must be a valid Ethereum address")
+
+        org_id = str(incident.get("org_id") or "acme-organization")
+        resource_id = self._resource_id_from_incident(incident)
+        if not resource_id:
+            raise ValueError("incident resource_id is required for on-chain enforcement")
+
+        adapter = PolicyEngineAdapter(blockchain_client)
+        tx_hash = adapter.set_resource_freeze(
+            Web3.keccak(text=org_id),
+            Web3.to_checksum_address(did),
+            Web3.keccak(text=resource_id),
+            frozen,
+        )
+
+        return {
+            "status": "confirmed",
+            "frozen": frozen,
+            "transaction_hash": tx_hash,
+            "org_id": org_id,
+            "resource_id": resource_id,
         }
 
     def simulate_attack(
@@ -408,624 +477,58 @@ class SecurityWorkflowService:
             return []
 
         decisions_by_incident = {
-            str((event.data or {}).get("incident_id")): event.data or {}
-            for event in decisions
-            if (event.data or {}).get("incident_id")
+            str((item.data or {}).get("incident_id")): item
+            for item in decisions
+            if (item.data or {}).get("incident_id")
         }
-        incidents: list[dict] = []
 
+        incidents: list[dict] = []
         for event in events:
             data = event.data or {}
+            incident_id = str(data.get("incident_id") or "")
+            if not incident_id:
+                incident_id = f"INC-{event.event_id[-10:].upper()}"
 
-            identity = str(
-                data.get("identity")
-                or data.get("subject")
-                or data.get("did")
-                or ""
-            )
-            if not identity:
-                continue
-
-            timestamp = (
-                event.timestamp.isoformat()
-                if event.timestamp
-                else datetime.now(timezone.utc).isoformat()
-            )
-
-            severity = str(
-                data.get("severity")
-                or "Low"
-            )
-
-            risk_score = int(
-                data.get("risk_score")
-                or 0
-            )
-
-            suspended = str(
-                data.get("suspension_state")
-                or data.get("status")
-                or ""
-            ).lower() == "suspended"
-
-            event_id = (
-                f"{event.transaction_hash}:"
-                f"{event.log_index}"
-            )
-
-            incident_id = f"INC-PERSISTED-{event_id}"
-            decision_data = decisions_by_incident.get(incident_id, {})
-            identity_status = str(
+            decision_event = decisions_by_incident.get(incident_id)
+            decision_data = decision_event.data if decision_event else {}
+            current_state = str(
                 decision_data.get("current_state")
                 or data.get("identity_status")
-                or ("SUSPENDED" if suspended else "ACTIVE")
+                or data.get("status")
+                or "ACTIVE"
             ).upper()
 
-            incident = {
-                "incident_id": incident_id,
-                "identity": str(
-                    data.get("identity")
-                    or data.get("subject")
-                    or "Unknown identity"
-                ),
-                "role": str(
-                    data.get("role")
-                    or "Unknown role"
-                ),
-                "attack_type": str(
-                    data.get("attack_type")
-                    or "Unauthorized access attempt"
-                ),
-                "threat_type": str(
-                    data.get("threat_type")
-                    or "Unauthorized access"
-                ),
-                "resource": str(
-                    data.get("resource")
-                    or data.get("resource_id")
-                    or "Unknown resource"
-                ),
-                "action": str(
-                    data.get("action")
-                    or "Unknown action"
-                ),
-                "violations": int(
-                    data.get("violations")
-                    or 1
-                ),
-                "risk_score": risk_score,
-                "severity": severity,
-                "decision": str(
-                    decision_data.get("decision")
-                    or data.get("decision")
-                    or "DENY"
-                ),
-                "status": identity_status,
-                "suspended": identity_status == "SUSPENDED",
-                "created_at": timestamp,
-                "evidence": [
-                    {
-                        "event_id": event_id,
-                        "event": event.event_name,
-                        "reason": str(
-                            data.get("reason")
-                            or "PolicyEngine denied the requested action."
-                        ),
-                        "synthetic": bool(
-                            data.get("synthetic", False)
-                        ),
-                    }
-                ],
-                "timeline": [
-                    {
-                        "stage": "ATTACK",
-                        "timestamp": timestamp,
-                    },
-                    {
-                        "stage": "POLICY_DENIAL",
-                        "timestamp": timestamp,
-                    },
-                    {
-                        "stage": "BEHAVIOR_PATTERN",
-                        "timestamp": timestamp,
-                    },
-                    {
-                        "stage": "AUDIT_EVENT",
-                        "timestamp": timestamp,
-                    },
-                    {
-                        "stage": "THREAT_DETECTION",
-                        "timestamp": timestamp,
-                    },
-                    {
-                        "stage": "RISK_ESCALATION",
-                        "timestamp": timestamp,
-                    },
-                    {
-                        "stage": (
-                            "SUSPENSION"
-                            if suspended
-                            else "ADAPTIVE_RESTRICTION"
-                        ),
-                        "timestamp": timestamp,
-                    },
-                ],
-                "response_metrics": {
-                    "attack_to_restriction_ms": 0,
-                    "detection_latency_ms": 0,
-                    "restriction_latency_ms": 0,
-                    "measured_from": "recorded_workflow_event",
-                },
-            }
-
-            incidents.append(incident)
-
-        incidents.sort(
-            key=lambda incident: incident.get(
-                "created_at",
-                "",
-            ),
-            reverse=True,
-        )
+            incidents.append(
+                {
+                    "incident_id": incident_id,
+                    "identity": str(data.get("identity") or data.get("subject") or ""),
+                    "org_id": str(data.get("org_id") or "acme-organization"),
+                    "resource": self._resource_label(str(data.get("resource_id") or data.get("resource") or "")),
+                    "resource_id": str(data.get("resource_id") or data.get("resource") or ""),
+                    "action": str(data.get("action") or ""),
+                    "attack_type": str(data.get("attack_type") or "Unauthorized access attempt"),
+                    "threat_type": str(data.get("threat_type") or "Unauthorized access"),
+                    "risk_score": int(data.get("risk_score") or 0),
+                    "severity": str(data.get("severity") or "Low"),
+                    "decision": str(decision_data.get("decision") or data.get("decision") or "DENY"),
+                    "status": current_state,
+                    "suspended": current_state == "SUSPENDED",
+                    "violations": int(data.get("violations") or 0),
+                    "created_at": event.timestamp.isoformat(),
+                    "synthetic": bool(data.get("synthetic", False)),
+                    "ai_analysis": data.get("ai_analysis"),
+                    "on_chain_enforcement": decision_data.get("on_chain_enforcement"),
+                    "evidence": [
+                        {
+                            "event_name": event.event_name,
+                            "transaction_hash": event.transaction_hash,
+                            "timestamp": event.timestamp.isoformat(),
+                        }
+                    ],
+                }
+            )
 
         return incidents
-
-    def graph(self) -> dict:
-        nodes: dict[str, dict] = {}
-        links: list[dict] = []
-        seen_links: set[tuple[str, str, str]] = set()
-
-        def node(
-            node_id: str,
-            label: str,
-            node_type: str,
-            risk: int = 0,
-        ) -> None:
-            current = nodes.setdefault(
-                node_id,
-                {
-                    "id": node_id,
-                    "label": label,
-                    "type": node_type,
-                    "risk": risk,
-                },
-            )
-
-            current["risk"] = max(
-                current["risk"],
-                risk,
-            )
-
-        def link(
-            source: str,
-            target: str,
-            relation: str,
-        ) -> None:
-            key = (
-                source,
-                target,
-                relation,
-            )
-
-            if key not in seen_links:
-                seen_links.add(key)
-
-                links.append(
-                    {
-                        "source": source,
-                        "target": target,
-                        "relation": relation,
-                    }
-                )
-
-        incidents = self.list_incidents()
-
-        for incident in incidents:
-            identity = incident["identity"]
-            role = incident["role"]
-            resource = incident["resource"]
-            event_id = incident["incident_id"]
-            risk = incident["risk_score"]
-
-            identity_node = f"identity:{identity}"
-            role_node = f"role:{role}"
-            resource_node = f"resource:{resource}"
-            event_node = f"event:{event_id}"
-            threat_node = f"threat:{event_id}"
-
-            for args in (
-                (
-                    identity_node,
-                    identity,
-                    "identity",
-                    risk,
-                ),
-                (
-                    role_node,
-                    role,
-                    "role",
-                    0,
-                ),
-                (
-                    resource_node,
-                    resource,
-                    "resource",
-                    risk,
-                ),
-                (
-                    event_node,
-                    "AccessDenied",
-                    "event",
-                    risk,
-                ),
-                (
-                    threat_node,
-                    incident["threat_type"],
-                    "threat",
-                    risk,
-                ),
-            ):
-                node(*args)
-
-            link(
-                identity_node,
-                role_node,
-                "assigned",
-            )
-
-            link(
-                role_node,
-                resource_node,
-                "requests",
-            )
-
-            link(
-                identity_node,
-                event_node,
-                "triggered",
-            )
-
-            link(
-                event_node,
-                threat_node,
-                "detected",
-            )
-
-            link(
-                threat_node,
-                resource_node,
-                "targets",
-            )
-
-        latest_incident = (
-            incidents[0]
-            if incidents
-            else None
-        )
-
-        behavior_score = 0
-        behavior_detected = False
-
-        if latest_incident:
-            behavior_checkpoint = latest_incident.get(
-                "behavior_checkpoint",
-                {},
-            )
-
-            behavior_score = int(
-                latest_incident.get(
-                    "behavior_score",
-                    behavior_checkpoint.get(
-                        "score",
-                        0,
-                    ),
-                )
-            )
-
-            behavior_detected = bool(
-                latest_incident.get(
-                    "behavior_detected",
-                    behavior_checkpoint.get(
-                        "detected",
-                        False,
-                    ),
-                )
-            )
-
-        risk_score = (
-            int(
-                latest_incident.get(
-                    "risk_score",
-                    0,
-                )
-            )
-            if latest_incident
-            else 0
-        )
-
-        trust_score = max(
-            0,
-            100 - max(
-                risk_score,
-                behavior_score,
-            ),
-        )
-
-        if behavior_score >= 70:
-            trust_state = "CRITICAL"
-        elif behavior_score >= 40:
-            trust_state = "DEGRADED"
-        elif behavior_score > 0:
-            trust_state = "WATCH"
-        else:
-            trust_state = "STABLE"
-
-        return {
-            "service": "trust-risk-graph",
-            "status": "ready",
-            "count": {
-                "nodes": len(nodes),
-                "links": len(links),
-            },
-            "nodes": list(nodes.values()),
-            "links": links,
-            "behavior": {
-                "score": behavior_score,
-                "detected": behavior_detected,
-                "state": trust_state,
-            },
-            "trust": {
-                "score": trust_score,
-                "state": trust_state,
-            },
-        }
-
-    def copilot(
-        self,
-        incident: dict | None = None,
-    ) -> dict:
-        """
-        Build an evidence-backed Security Copilot assessment.
-
-        The Copilot never creates or changes security state. It only explains
-        the latest TrustMesh incident using evidence already produced by the
-        security workflow.
-        """
-
-        incident = incident or (
-            self.list_incidents()[0]
-            if self.list_incidents()
-            else None
-        )
-
-        if incident is None:
-            return {
-                "status": "ready",
-                "provider": "deterministic-security-analysis",
-                "incident_id": None,
-                "analysis": (
-                    "No TrustMesh security incident is currently available "
-                    "for analysis."
-                ),
-                "what_happened": (
-                    "No security incident has been recorded yet."
-                ),
-                "why_suspicious": (
-                    "There is no incident evidence available to establish "
-                    "suspicious behavior."
-                ),
-                "evidence": [],
-                "risk_explanation": (
-                    "No risk assessment is available because there is no "
-                    "incident evidence."
-                ),
-                "recommendation": (
-                    "Run a controlled security simulation to generate "
-                    "evidence for analysis."
-                ),
-            }
-
-        identity = incident.get(
-            "identity",
-            "Unknown identity",
-        )
-
-        role = incident.get(
-            "role",
-            "Unknown role",
-        )
-
-        resource = incident.get(
-            "resource",
-            "Unknown resource",
-        )
-
-        action = incident.get(
-            "action",
-            "Unknown action",
-        )
-
-        attack_type = incident.get(
-            "attack_type",
-            "Unknown attack",
-        )
-
-        threat_type = incident.get(
-            "threat_type",
-            "Unknown threat",
-        )
-
-        violations = incident.get(
-            "violations",
-            0,
-        )
-
-        risk_score = incident.get(
-            "risk_score",
-            0,
-        )
-
-        severity = incident.get(
-            "severity",
-            "Unknown",
-        )
-
-        decision = incident.get(
-            "decision",
-            "Unknown",
-        )
-
-        suspended = bool(
-            incident.get(
-                "suspended",
-                False,
-            )
-        )
-
-        evidence = incident.get(
-            "evidence",
-            [],
-        )
-
-        timeline = incident.get(
-            "timeline",
-            [],
-        )
-
-        evidence_count = len(evidence)
-
-        timeline_stages = [
-            stage.get("stage")
-            for stage in timeline
-            if (
-                isinstance(stage, dict)
-                and stage.get("stage")
-            )
-        ]
-
-        if suspended:
-            response_state = (
-                "The identity is currently suspended after TrustMesh "
-                "reached the critical-risk threshold."
-            )
-
-            recommendation = (
-                "Keep the identity suspended, review the indexed audit "
-                "evidence, validate the identity's legitimacy, and require "
-                "human approval before any recovery or unblock action."
-            )
-
-        elif severity.lower() == "high":
-            response_state = (
-                "TrustMesh denied the request and applied an adaptive "
-                "high-risk restriction."
-            )
-
-            recommendation = (
-                "Maintain the denial, review the indexed audit evidence, "
-                "and validate the identity before restoring access."
-            )
-
-        elif severity.lower() == "medium":
-            response_state = (
-                "TrustMesh detected repeated policy violations and moved "
-                "the identity into an adaptive step-up state."
-            )
-
-            recommendation = (
-                "Require step-up verification and review the related "
-                "security evidence before allowing privileged activity."
-            )
-
-        else:
-            response_state = (
-                "TrustMesh recorded a policy denial and classified the "
-                "activity as low risk."
-            )
-
-            recommendation = (
-                "Review the denied request and verify that the requested "
-                "action matches the identity's assigned permissions."
-            )
-
-        evidence_summary = (
-            f"Incident {incident['incident_id']} contains "
-            f"{evidence_count} evidence record(s) and "
-            f"{len(timeline_stages)} workflow stage(s)."
-        )
-
-        analysis = (
-            f"TrustMesh observed {violations} denied request(s) from "
-            f"{identity} ({role}) targeting {resource} with action "
-            f"{action}. The observed attack pattern is "
-            f"{attack_type}, with the detected threat classified as "
-            f"{threat_type}. The enforced decision was {decision}. "
-            f"Risk reached {risk_score}/100 ({severity}). "
-            f"{response_state} {evidence_summary}"
-        )
-
-        why_suspicious = (
-            f"The activity is suspicious because TrustMesh observed "
-            f"{violations} policy violation(s) associated with the same "
-            f"identity. The recorded threat pattern is "
-            f"\"{threat_type}\" and the workflow reached the "
-            f"\"{severity}\" risk classification. These conclusions are "
-            f"based on the recorded incident evidence rather than an "
-            f"unverified external claim."
-        )
-
-        risk_explanation = (
-            f"TrustMesh assigned a risk score of {risk_score}/100 and "
-            f"classified the incident as {severity}. "
-            f"{'The identity is suspended because the workflow reached the critical threshold. ' if suspended else ''}"
-            f"The score and enforcement state come from the TrustMesh "
-            f"security workflow."
-        )
-
-        return {
-            "status": "ready",
-            "provider": "deterministic-security-analysis",
-            "incident_id": incident["incident_id"],
-            "analysis": analysis,
-            "what_happened": (
-                f"{identity} ({role}) made repeated denied requests "
-                f"against {resource} using action {action}."
-            ),
-            "why_suspicious": why_suspicious,
-            "evidence": evidence,
-            "risk_explanation": risk_explanation,
-            "recommendation": recommendation,
-            "context": {
-                "identity": identity,
-                "role": role,
-                "resource": resource,
-                "action": action,
-                "attack_type": attack_type,
-                "threat_type": threat_type,
-                "violations": violations,
-                "risk_score": risk_score,
-                "severity": severity,
-                "decision": decision,
-                "suspended": suspended,
-                "timeline_stages": timeline_stages,
-            },
-        }
-
-    @staticmethod
-    def policy_simulation(
-        request: AccessCheckRequest,
-        simulated_decision: str,
-    ) -> dict:
-        return {
-            "simulation": True,
-            "policy_mutated": False,
-            "identity": request.did,
-            "role": request.role,
-            "resource": request.resource_id,
-            "action": request.action,
-            "current_decision": "ALLOW",
-            "simulated_decision": simulated_decision.upper(),
-        }
 
     def _record_incident(
         self,
@@ -1034,118 +537,67 @@ class SecurityWorkflowService:
         risk_score: int,
         severity: str,
     ) -> dict:
-        incident_timestamp = (
-            event.timestamp.isoformat()
-            if event.timestamp
-            else datetime.now(timezone.utc).isoformat()
-        )
-
+        data = event.data or {}
         incident = {
             "incident_id": f"INC-{uuid4().hex[:10].upper()}",
-            "identity": event.data["identity"],
-            "role": event.data["role"],
-            "attack_type": event.data["attack_type"],
-            "threat_type": event.data["threat_type"],
-            "resource": event.data["resource"],
-            "action": event.data["action"],
-            "violations": event.data["violations"],
+            "identity": event.data.get("identity") or event.data.get("subject"),
+            "org_id": event.data.get("org_id") or "acme-organization",
+            "resource": self._resource_label(event.data.get("resource_id") or event.data.get("resource") or ""),
+            "resource_id": event.data.get("resource_id") or event.data.get("resource") or "",
+            "action": event.data.get("action") or "",
+            "attack_type": data.get("attack_type") or "Unauthorized access attempt",
+            "threat_type": data.get("threat_type") or "Unauthorized access",
             "risk_score": risk_score,
             "severity": severity,
-            "decision": event.data["decision"],
-            "suspended": state.suspended,
-            "created_at": incident_timestamp,
+            "decision": "DENY",
+            "status": state.status,
+            "suspended": state.status == "SUSPENDED",
+            "violations": len(state.violations),
+            "created_at": event.timestamp.isoformat(),
+            "synthetic": bool(data.get("synthetic", False)),
+            "ai_analysis": data.get("ai_analysis"),
             "evidence": [
                 {
-                    "event_id": (
-                        f"{event.transaction_hash}:"
-                        f"{event.log_index}"
-                    ),
-                    "event": event.event_name,
-                    "reason": event.data["reason"],
-                    "synthetic": event.data["synthetic"],
+                    "event_name": event.event_name,
+                    "transaction_hash": event.transaction_hash,
+                    "timestamp": event.timestamp.isoformat(),
                 }
             ],
-            "timeline": [
-                {
-                    "stage": "ATTACK",
-                    "timestamp": incident_timestamp,
-                },
-                {
-                    "stage": "POLICY_DENIAL",
-                    "timestamp": incident_timestamp,
-                },
-                {
-                    "stage": "BEHAVIOR_PATTERN",
-                    "timestamp": incident_timestamp,
-                },
-                {
-                    "stage": "AUDIT_EVENT",
-                    "timestamp": incident_timestamp,
-                },
-                {
-                    "stage": "THREAT_DETECTION",
-                    "timestamp": incident_timestamp,
-                },
-                {
-                    "stage": "RISK_ESCALATION",
-                    "timestamp": incident_timestamp,
-                },
-                {
-                    "stage": (
-                        "SUSPENSION"
-                        if state.suspended
-                        else "ADAPTIVE_RESTRICTION"
-                    ),
-                    "timestamp": incident_timestamp,
-                },
-            ],
-            "response_metrics": {
-                "attack_to_restriction_ms": 0,
-                "detection_latency_ms": 0,
-                "restriction_latency_ms": 0,
-                "measured_from": "recorded_workflow_event",
-            },
         }
-
         self.incidents.append(incident)
-
         return incident
 
     @staticmethod
+    def _resource_label(resource_id: str) -> str:
+        return {
+            "acme-employee-records": "Employee Records",
+            "acme-admin-console": "Admin Console",
+            "acme-documents": "Documents",
+            "acme-digital-assets": "Digital Assets",
+        }.get(resource_id, resource_id)
+
+    @classmethod
     def _risk_for(
+        cls,
         action: str,
-        violations: int,
+        violation_count: int,
         admin_attempts: int,
     ) -> tuple[str, int]:
-        critical_action = action.upper() in {
-            "PRIVILEGE_ESCALATION",
-            "TRANSFER",
-        }
+        base = 25
+        if action.upper() in {"ADMIN", "DELETE", "TRANSFER", "PRIVILEGE_ESCALATION"}:
+            base = 50
+        score = min(100, base + (violation_count - 1) * 10 + admin_attempts * 10)
 
-        if (
-            violations >= 7
-            or (
-                critical_action
-                and admin_attempts >= 2
-            )
-        ):
-            return "Critical", 95
-
-        if (
-            violations >= 5
-            or admin_attempts >= 3
-        ):
-            return "High", 85
-
-        if violations >= 3:
-            return "Medium", 55
-
-        return "Low", 25
+        if score >= 85:
+            return "Critical", score
+        if score >= 65:
+            return "High", score
+        if score >= 40:
+            return "Medium", score
+        return "Low", score
 
     @staticmethod
-    def _adaptive_state(
-        severity: str,
-    ) -> str:
+    def _adaptive_state(severity: str) -> str:
         return {
             "Low": "ALLOW",
             "Medium": "STEP-UP",
@@ -1153,19 +605,87 @@ class SecurityWorkflowService:
             "Critical": "DENY + SUSPEND",
         }[severity]
 
-    @staticmethod
-    def _resource_label(
-        resource_id: str,
-    ) -> str:
+    def graph(self) -> dict:
+        incidents = self.list_incidents()
+        nodes: list[dict] = []
+        links: list[dict] = []
+        node_ids: set[str] = set()
+
+        def add_node(node_id: str, label: str, node_type: str, risk: int = 0) -> None:
+            if node_id in node_ids:
+                return
+            node_ids.add(node_id)
+            nodes.append({
+                "id": node_id,
+                "label": label,
+                "type": node_type,
+                "risk": risk,
+            })
+
+        for incident in incidents:
+            identity = str(incident.get("identity") or "")
+            resource = str(incident.get("resource") or "")
+            threat = str(incident.get("threat_type") or "")
+            role = str(incident.get("role") or "External")
+            risk = int(incident.get("risk_score") or 0)
+
+            add_node(f"identity:{identity}", identity, "identity", risk)
+            add_node(f"role:{role}", role, "role")
+            add_node(f"resource:{resource}", resource, "resource", risk)
+            add_node(f"threat:{threat}", threat, "threat", risk)
+            links.extend(
+                [
+                    {"source": f"identity:{identity}", "target": f"role:{role}", "relation": "assigned"},
+                    {"source": f"identity:{identity}", "target": f"threat:{threat}", "relation": "detected"},
+                    {"source": f"threat:{threat}", "target": f"resource:{resource}", "relation": "targeted"},
+                ]
+            )
+
         return {
-            "acme-employee-records": "Employee Records",
-            "acme-admin-console": "Admin Console",
-            "acme-documents": "Documents",
-            "acme-digital-assets": "Digital Assets",
-        }.get(
-            resource_id,
-            resource_id,
+            "service": "security-workflow",
+            "status": "ready",
+            "nodes": nodes,
+            "links": links,
+            "count": {"nodes": len(nodes), "links": len(links)},
+        }
+
+    def copilot(self) -> dict:
+        incidents = self.list_incidents()
+        critical = [item for item in incidents if item.get("severity") == "Critical"]
+        highest = max((int(item.get("risk_score") or 0) for item in incidents), default=0)
+
+        return {
+            "service": "security-copilot",
+            "status": "ready",
+            "summary": (
+                "Critical incidents require human review and may trigger resource freezing."
+                if critical
+                else "No critical incidents are currently projected."
+            ),
+            "highest_risk": highest,
+            "critical_incidents": len(critical),
+            "recommendations": [
+                "Review indexed evidence before changing identity state.",
+                "Use SUSPEND or BLOCK for confirmed high-risk behavior.",
+                "Use ACCEPT only after the evidence is cleared.",
+            ],
+        }
+
+    def policy_simulation(self, role: str, action: str, resource: str) -> dict:
+        normalized_role = role.strip().lower()
+        normalized_action = action.strip().upper()
+        allowed = normalized_role in {"admin", "manager"} or (
+            normalized_role == "employee" and normalized_action not in {"ADMIN", "DELETE", "PRIVILEGE_ESCALATION"}
         )
+        return {
+            "service": "policy-impact-simulator",
+            "status": "simulated",
+            "role": role,
+            "action": normalized_action,
+            "resource": resource,
+            "current_policy": "ALLOW" if allowed else "DENY",
+            "impact": "Access remains unchanged; simulation does not execute the action.",
+        }
 
 
 security_workflow = SecurityWorkflowService()
