@@ -1,6 +1,6 @@
 Readme · MD
 <div align="center">
-# 🛡️ TrustMesh × SecureBank
+# 🛡️ TrustMesh 
  
 ### A self-defending, blockchain-enforced identity & access platform — proven by a real second application built on top of it.
  
