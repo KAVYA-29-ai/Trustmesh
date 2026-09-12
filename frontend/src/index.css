@@ -31,6 +31,23 @@ body {
     #08090b;
 }
 
+.incident-queue { display: grid; gap: 6px; max-height: 330px; overflow: auto; margin-top: 4px; }
+.incident-queue-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 10px; align-items: center; border: 1px solid #242a33; border-radius: 8px; background: #0e1116; color: #e8ebef; cursor: pointer; padding: 10px; text-align: left; }
+.incident-queue-row:hover, .incident-queue-row.selected { border-color: #53616e; background: #171c24; }
+.incident-queue-row strong, .incident-queue-row small { display: block; }
+.incident-queue-row strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.incident-queue-row small { margin-top: 3px; color: #858d98; font-size: 10px; }
+.incident-queue-row > b { color: #f4b860; font-size: 10px; }
+.incident-state { border-radius: 4px; padding: 4px 6px; color: #aeb6c0; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+.incident-state-open { background: #252a31; }
+.incident-state-accepted { background: #173325; color: #70d8a1; }
+.incident-state-suspended { background: #3a2815; color: #f4b860; }
+.incident-state-blocked { background: #3a171d; color: #ff6d73; }
+.incident-review-card { margin-top: 14px; }
+.incident-evidence-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; color: #9aa3ad; font-size: 10px; }
+.incident-evidence-summary span { border: 1px solid #29313b; border-radius: 5px; padding: 5px 7px; }
+.human-response-label { margin: 10px 0 7px; color: #858d98; font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+
 button {
   font: inherit;
 }

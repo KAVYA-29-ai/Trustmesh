@@ -304,6 +304,10 @@ class SecurityWorkflowService:
             state.status = "SUSPENDED"
         elif normalized == "BLOCK":
             state.status = "BLOCKED"
+        elif normalized == "ACCEPT":
+            state.status = "ACTIVE"
+            state.violations.clear()
+            state.admin_attempts = 0
 
         now = datetime.now(timezone.utc)
         event_id = f"decision-{uuid4()}"
@@ -403,7 +407,12 @@ class SecurityWorkflowService:
         except Exception:
             return []
 
-        latest_by_identity: dict[str, AuditEvent] = {}
+        decisions_by_incident = {
+            str((event.data or {}).get("incident_id")): event.data or {}
+            for event in decisions
+            if (event.data or {}).get("incident_id")
+        }
+        incidents: list[dict] = []
 
         for event in events:
             data = event.data or {}
@@ -414,22 +423,8 @@ class SecurityWorkflowService:
                 or data.get("did")
                 or ""
             )
-
             if not identity:
                 continue
-
-            if identity not in latest_by_identity:
-                latest_by_identity[identity] = event
-
-        decisions_by_incident = {
-            str((event.data or {}).get("incident_id")): event.data or {}
-            for event in decisions
-            if (event.data or {}).get("incident_id")
-        }
-        incidents: list[dict] = []
-
-        for event in latest_by_identity.values():
-            data = event.data or {}
 
             timestamp = (
                 event.timestamp.isoformat()

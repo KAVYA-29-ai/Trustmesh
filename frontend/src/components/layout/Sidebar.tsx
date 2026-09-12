@@ -110,18 +110,7 @@ function Sidebar() {
       </div>
 
       <nav className="sidebar-nav" aria-label="Platform navigation">
-        <div className="nav-label">DEMO SURFACES</div>
-
-        <NavLink to="/bank" className={({ isActive }) => `nav-item nav-item-external ${isActive ? "active" : ""}`}>
-          <span className="nav-icon"><NavIcon name="resource" /></span>
-          <span>Bank Demo</span>
-        </NavLink>
-        <NavLink to="/attack" className={({ isActive }) => `nav-item nav-item-attack ${isActive ? "active" : ""}`}>
-          <span className="nav-icon"><NavIcon name="security" /></span>
-          <span>Attack Demo</span>
-        </NavLink>
-
-        <div className="nav-label nav-label-secondary">CONTROL PLANE</div>
+        <div className="nav-label">CONTROL PLANE</div>
 
         {navigation.map((item) => (
           <NavLink
