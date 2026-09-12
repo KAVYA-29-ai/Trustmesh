@@ -1,6 +1,7 @@
 export type ScenarioCategory = "Identity" | "Banking" | "Behavioral" | "Policy" | "Resource" | "High Risk";
 export type ScenarioSeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 export type ScenarioMode = "single" | "sequence";
+import { seededDemoIdentities } from "../services/demoIdentities";
 
 export interface AttackScenario {
   id: string;
@@ -19,8 +20,8 @@ export interface AttackScenario {
   endpoint: "admin" | "transfer";
 }
 
-const employee = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
-const restricted = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+const employee = seededDemoIdentities.employee.address;
+const restricted = seededDemoIdentities.admin.address;
 
 const single = (id: string, title: string, category: ScenarioCategory, severity: ScenarioSeverity, description: string, action: string, permission: string, risk: number, endpoint: "admin" | "transfer" = "admin", role = "External", did = employee): AttackScenario => ({ id, title, category, severity, description, identity: did === employee ? "Jordan Lee" : "Alex Morgan", role, target: "Acme Bank", resourceId: endpoint === "transfer" ? "acme-bank-transfer" : "acme-bank-admin", action, permission, risk, mode: "single", endpoint });
 const sequence = (id: string, title: string, category: ScenarioCategory, severity: ScenarioSeverity, description: string, action: string, permission: string, risk: number, endpoint: "admin" | "transfer" = "admin"): AttackScenario => ({ ...single(id, title, category, severity, description, action, permission, risk, endpoint), mode: "sequence" });

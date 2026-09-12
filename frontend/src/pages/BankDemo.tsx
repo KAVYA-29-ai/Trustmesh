@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 
 import StatusBadge from "../components/ui/StatusBadge";
 import { bankAccount, bankTransfer, type BankActionResult } from "../services/demo";
+import { seededDemoIdentities } from "../services/demoIdentities";
 
-const employee = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
-const admin = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+const employee = seededDemoIdentities.employee.address;
+const admin = seededDemoIdentities.admin.address;
 
 function requestFor(did: string, resource_id: string, action: string) {
   return { org_id: "acme-organization", did, role: did === employee ? "Employee" : "Admin", resource_id, action };

@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import Sidebar from "../components/layout/Sidebar";
 import Topbar from "../components/layout/Topbar";
 import StatusBadge from "../components/ui/StatusBadge";
 import Icon from "../components/ui/Icon";
+import { getIdentitySecurityStatus } from "../services/security";
+import { seededDemoIdentities } from "../services/demoIdentities";
 
 type IdentityStatus = "Verified" | "Pending" | "Suspended" | "Blocked";
 
@@ -55,8 +57,8 @@ const demoIdentities: Identity[] = [
     activity: "Verification pending",
   },
   {
-    did: "did:trust:a82e...51d9",
-    name: "Suspicious Employee",
+    did: "did:trustmesh:security",
+    name: "Security Analyst",
     role: "Employee",
     status: "Suspended",
     risk: 95,
@@ -64,8 +66,8 @@ const demoIdentities: Identity[] = [
     activity: "Repeated protected-action violations",
   },
   {
-    did: "did:trust:c14f...82aa",
-    name: "Restricted Account",
+    did: "did:trustmesh:admin",
+    name: "System Administrator",
     role: "Employee",
     status: "Blocked",
     risk: 100,
@@ -73,6 +75,11 @@ const demoIdentities: Identity[] = [
     activity: "Security policy enforcement",
   },
 ];
+
+const liveDemoIdentities = new Map([
+  [seededDemoIdentities.employee.did, seededDemoIdentities.employee.address],
+  [seededDemoIdentities.admin.did, seededDemoIdentities.admin.address],
+]);
 
 function statusVariant(status: IdentityStatus) {
   switch (status) {
@@ -99,26 +106,62 @@ function riskLabel(risk: number) {
 }
 
 function Identities() {
+  const [identities, setIdentities] = useState(demoIdentities);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"All" | IdentityStatus>("All");
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [statusError, setStatusError] = useState("");
 
-  const verifiedCount = demoIdentities.filter(
+  useEffect(() => {
+    let active = true;
+    async function loadLiveStatuses() {
+      try {
+        const statuses = await Promise.all(
+          [...liveDemoIdentities.entries()].map(async ([did, address]) => [
+            did,
+            (await getIdentitySecurityStatus(address)).status,
+          ] as const),
+        );
+        if (!active) return;
+        const statusByDid = new Map(statuses);
+        setIdentities((current) => current.map((identity) => {
+          const liveStatus = statusByDid.get(identity.did);
+          if (!liveStatus) return identity;
+          const normalized: IdentityStatus = liveStatus === "SUSPENDED"
+            ? "Suspended"
+            : liveStatus === "BLOCKED"
+              ? "Blocked"
+              : "Verified";
+          return { ...identity, status: normalized, risk: normalized === "Blocked" ? 100 : normalized === "Suspended" ? 95 : 12 };
+        }));
+        setStatusError("");
+      } catch (error) {
+        if (active) setStatusError(error instanceof Error ? error.message : "Unable to load live identity status.");
+      } finally {
+        if (active) setStatusLoading(false);
+      }
+    }
+    void loadLiveStatuses();
+    return () => { active = false; };
+  }, []);
+
+  const verifiedCount = identities.filter(
     (identity) => identity.status === "Verified",
   ).length;
 
-  const restrictedCount = demoIdentities.filter(
+  const restrictedCount = identities.filter(
     (identity) =>
       identity.status === "Suspended" || identity.status === "Blocked",
   ).length;
 
-  const criticalCount = demoIdentities.filter(
+  const criticalCount = identities.filter(
     (identity) => identity.risk >= 90,
   ).length;
 
   const filteredIdentities = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return demoIdentities.filter((identity) => {
+    return identities.filter((identity) => {
       const matchesSearch =
         !query ||
         `${identity.did} ${identity.name} ${identity.role} ${identity.status}`
@@ -130,7 +173,7 @@ function Identities() {
 
       return matchesSearch && matchesFilter;
     });
-  }, [search, filter]);
+  }, [identities, search, filter]);
 
   return (
     <div className="app-shell">
@@ -165,7 +208,7 @@ function Identities() {
               <div className="metric-label">Total identities</div>
 
               <div className="metric-value">
-                {demoIdentities.length}
+                {statusLoading ? "…" : identities.length}
               </div>
 
               <div className="metric-meta">
@@ -207,6 +250,7 @@ function Identities() {
                 </p>
               </div>
 
+              {statusError && <span className="badge badge-warning">Live status unavailable</span>}
               {criticalCount > 0 && (
                 <span className="badge badge-critical">
                   {criticalCount} critical

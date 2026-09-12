@@ -3,10 +3,11 @@ import { Link } from "react-router-dom";
 
 import StatusBadge from "../components/ui/StatusBadge";
 import { bankAdmin, bankTransfer, type BankActionResult } from "../services/demo";
+import { seededDemoIdentities } from "../services/demoIdentities";
 import { attackScenarios, scenarioCategories, type AttackScenario, type ScenarioFilter } from "./attackScenarios";
 
 type FeedEvent = { id: string; timestamp: string; scenario: AttackScenario; result: BankActionResult & { severity?: string; risk_score?: number; incident_id?: string; event_id?: string } };
-const targetIdentity = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+const targetIdentity = seededDemoIdentities.employee.address;
 
 function severityClass(severity: string) { return `scenario-severity severity-${severity.toLowerCase()}`; }
 function formatIdentity(value: string) { return value.length > 18 ? `${value.slice(0, 8)}...${value.slice(-6)}` : value; }

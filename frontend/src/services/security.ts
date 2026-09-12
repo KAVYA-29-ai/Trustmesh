@@ -31,6 +31,14 @@ export async function getSecurityCopilot(): Promise<SecurityCopilotResponse> {
   return api.get<SecurityCopilotResponse>("/security/copilot");
 }
 
+export async function getIdentitySecurityStatus(
+  did: string,
+): Promise<{ identity: string; status: string }> {
+  return api.get<{ identity: string; status: string }>(
+    `/security/identities/${encodeURIComponent(did)}/status`,
+  );
+}
+
 export async function decideSecurityIncident(
   incidentId: string,
   decision: "ACCEPT" | "SUSPEND" | "BLOCK",

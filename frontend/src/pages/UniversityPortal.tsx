@@ -15,12 +15,13 @@ import type {
   DemoAttackResult,
   PolicySimulationResult,
 } from "../services/demo";
+import { seededDemoIdentities } from "../services/demoIdentities";
 
 type IdentityRole = "Employee" | "Admin";
 type Modal = "resource" | "identity" | null;
 
-const employeeIdentity = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
-const adminIdentity = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+const employeeIdentity = seededDemoIdentities.employee.address;
+const adminIdentity = seededDemoIdentities.admin.address;
 
 function requestFor(role: IdentityRole, resourceId: string, action: string) {
   return { org_id: "acme-organization", did: role === "Employee" ? employeeIdentity : adminIdentity, role, resource_id: resourceId, action };

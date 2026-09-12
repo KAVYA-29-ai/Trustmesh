@@ -10,6 +10,7 @@ import Recovery from "./pages/Recovery";
 import Audit from "./pages/Audit";
 import BankDemo from "./pages/BankDemo";
 import AttackDemo from "./pages/AttackDemo";
+import AISecurity from "./pages/AISecurity";
 
 
 function App() {
@@ -29,7 +30,7 @@ function App() {
         <Route path="/assets" element={<Assets />} />
         <Route path="/audit" element={<Audit />} />
         <Route path="/security" element={<Security />} />
-        <Route path="/ai-security" element={<Security />} />
+        <Route path="/ai-security" element={<AISecurity />} />
         <Route path="/recovery" element={<Recovery />} />
       </Routes>
     </BrowserRouter>
