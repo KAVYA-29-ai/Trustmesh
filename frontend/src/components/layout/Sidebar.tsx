@@ -10,19 +10,53 @@ type IconName =
   | "security"
   | "recovery";
 
-const navigation: Array<{
+type NavigationItem = {
   label: string;
   path: string;
   icon: IconName;
-}> = [
-  { label: "Dashboard", path: "/dashboard", icon: "overview" },
-  { label: "Identity", path: "/identities", icon: "identity" },
-  { label: "Access Control", path: "/policies", icon: "policy" },
-  { label: "Resources", path: "/resources", icon: "resource" },
-  { label: "Assets", path: "/assets", icon: "asset" },
-  { label: "Audit Log", path: "/audit", icon: "audit" },
-  { label: "Security Center", path: "/security", icon: "security" },
-  { label: "Recovery", path: "/recovery", icon: "recovery" },
+};
+
+const navigation: NavigationItem[] = [
+  {
+    label: "Dashboard",
+    path: "/dashboard",
+    icon: "overview",
+  },
+  {
+    label: "Identity",
+    path: "/identities",
+    icon: "identity",
+  },
+  {
+    label: "Access Control",
+    path: "/policies",
+    icon: "policy",
+  },
+  {
+    label: "Resources",
+    path: "/resources",
+    icon: "resource",
+  },
+  {
+    label: "Assets",
+    path: "/assets",
+    icon: "asset",
+  },
+  {
+    label: "Audit Log",
+    path: "/audit",
+    icon: "audit",
+  },
+  {
+    label: "Security Center",
+    path: "/security",
+    icon: "security",
+  },
+  {
+    label: "Recovery",
+    path: "/recovery",
+    icon: "recovery",
+  },
 ];
 
 function NavIcon({ name }: { name: IconName }) {
@@ -34,43 +68,56 @@ function NavIcon({ name }: { name: IconName }) {
         <path d="M9.5 20v-6h5v6" />
       </>
     ),
+
     identity: (
       <>
         <circle cx="12" cy="8" r="3" />
         <path d="M5 20a7 7 0 0 1 14 0" />
       </>
     ),
+
     policy: (
       <>
         <path d="m12 3 7 4v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V7l7-4Z" />
         <path d="m9 12 2 2 4-4" />
       </>
     ),
+
     resource: (
       <>
         <rect x="4" y="4" width="16" height="16" rx="2" />
         <path d="M8 8h8M8 12h8M8 16h5" />
       </>
     ),
+
     asset: (
       <>
         <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
         <path d="m4.5 7.5 7.5 4 7.5-4M12 12v9" />
       </>
     ),
+
     audit: (
       <>
         <path d="M7 4h10v16H7z" />
         <path d="M9.5 8h5M9.5 12h5M9.5 16h3" />
       </>
     ),
+
     security: (
       <>
         <path d="M12 3 20 6v5c0 5-3.2 8-8 10-4.8-2-8-5-8-10V6l8-3Z" />
         <path d="M12 8v4" />
-        <circle cx="12" cy="15.5" r=".7" fill="currentColor" stroke="none" />
+        <circle
+          cx="12"
+          cy="15.5"
+          r=".7"
+          fill="currentColor"
+          stroke="none"
+        />
       </>
     ),
+
     recovery: (
       <>
         <path d="M4 7a8 8 0 1 1 1 9" />
@@ -81,7 +128,7 @@ function NavIcon({ name }: { name: IconName }) {
 
   return (
     <svg
-      className="nav-icon-svg"
+      className="nav-item-icon"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -98,53 +145,68 @@ function NavIcon({ name }: { name: IconName }) {
 function Sidebar() {
   return (
     <aside className="sidebar">
-      <div className="brand">
-        <div className="brand-mark" aria-hidden="true">
+      <div className="sidebar-brand">
+        <div className="sidebar-brand-mark" aria-hidden="true">
           T
         </div>
 
-        <div className="brand-copy">
-          <div className="brand-name">TrustMesh</div>
-          <div className="brand-subtitle">Security Infrastructure</div>
+        <div>
+          <div className="sidebar-brand-name">TrustMesh</div>
+
+          <div className="sidebar-brand-subtitle">
+            Security Infrastructure
+          </div>
         </div>
       </div>
 
-      <nav className="sidebar-nav" aria-label="Platform navigation">
-        <div className="nav-label">CONTROL PLANE</div>
+      <nav className="sidebar-nav" aria-label="TrustMesh navigation">
+        <section className="nav-section">
+          <div className="nav-section-label">Control Plane</div>
 
-        {navigation.map((item) => (
+          {navigation.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) =>
+                `nav-item${isActive ? " active" : ""}`
+              }
+            >
+              <NavIcon name={item.icon} />
+
+              <span className="nav-item-label">{item.label}</span>
+            </NavLink>
+          ))}
+        </section>
+
+        <section className="nav-section">
+          <div className="nav-section-label">Intelligence</div>
+
           <NavLink
-            key={item.path}
-            to={item.path}
+            to="/ai-security"
             className={({ isActive }) =>
-              `nav-item ${isActive ? "active" : ""}`
+              `nav-item${isActive ? " active" : ""}`
             }
           >
-            <span className="nav-icon">
-              <NavIcon name={item.icon} />
-            </span>
-            <span>{item.label}</span>
-          </NavLink>
-        ))}
+            <NavIcon name="security" />
 
-        <div className="nav-label nav-label-secondary">INTELLIGENCE</div>
-        <NavLink
-          to="/ai-security"
-          className={({ isActive }) =>
-            `nav-item nav-item-security ${isActive ? "active" : ""}`
-          }
-        >
-          <span className="nav-icon"><NavIcon name="security" /></span>
-          <span>AI Security</span>
-        </NavLink>
+            <span className="nav-item-label">AI Security</span>
+          </NavLink>
+        </section>
       </nav>
 
       <div className="sidebar-footer">
-        <span className="network-dot" aria-hidden="true" />
+        <div className="system-status">
+          <span className="system-status-dot" aria-hidden="true" />
 
-        <div>
-          <div className="network-title">TrustMesh protected</div>
-          <div className="network-status">Local demo environment</div>
+          <div>
+            <div className="system-status-title">
+              TrustMesh protected
+            </div>
+
+            <div className="system-status-meta">
+              Local security environment
+            </div>
+          </div>
         </div>
       </div>
     </aside>

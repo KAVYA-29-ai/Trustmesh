@@ -18,43 +18,53 @@ function Recovery() {
     timelock_hours: 0,
   });
 
-  const [requests, setRequests] = useState<RecoveryRequest[]>([]);
+  const [requests, setRequests] = useState<
+    RecoveryRequest[]
+  >([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    async function loadRecovery() {
-      try {
-        setLoading(true);
-        setError("");
+  async function loadRecovery() {
+    try {
+      setLoading(true);
+      setError("");
 
-        const response = await getRecoveryCenter();
+      const response = await getRecoveryCenter();
 
-        setSummary({
-          active_requests: response.summary.active_requests,
-          pending_consensus: response.summary.pending_consensus,
-          required_approvals: response.summary.required_approvals,
-          timelock_hours: response.summary.timelock_hours,
-        });
+      setSummary({
+        active_requests: response.summary.active_requests,
+        pending_consensus:
+          response.summary.pending_consensus,
+        required_approvals:
+          response.summary.required_approvals,
+        timelock_hours:
+          response.summary.timelock_hours,
+      });
 
-        setRequests(
-          Array.isArray(response.requests)
-            ? response.requests
-            : [],
-        );
-      } catch (error) {
-        console.error("Failed to load recovery center:", error);
-        setError(
-          error instanceof Error
-            ? error.message
-            : "Unable to load the recovery center.",
-        );
-      } finally {
-        setLoading(false);
-      }
+      setRequests(
+        Array.isArray(response.requests)
+          ? response.requests
+          : [],
+      );
+    } catch (err) {
+      console.error(
+        "Failed to load recovery center:",
+        err,
+      );
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load the recovery center.",
+      );
+    } finally {
+      setLoading(false);
     }
+  }
 
-    loadRecovery();
+  useEffect(() => {
+    void loadRecovery();
   }, []);
 
   return (
@@ -67,7 +77,9 @@ function Recovery() {
         <main className="dashboard">
           <section className="page-heading">
             <div>
-              <div className="eyebrow">SENTINEL PROTOCOL</div>
+              <div className="eyebrow">
+                SENTINEL PROTOCOL
+              </div>
 
               <h1>Identity Recovery</h1>
 
@@ -77,21 +89,27 @@ function Recovery() {
               </p>
             </div>
 
-            <StatusBadge>Sentinel layer ready</StatusBadge>
+            <StatusBadge>
+              Sentinel layer ready
+            </StatusBadge>
           </section>
 
-          <section className="security-overview">
+          <section className="stats-grid">
             <div className="stat-card">
               <div className="stat-card-top">
                 <span className="stat-label">
                   ACTIVE REQUESTS
                 </span>
 
-                <span className="stat-icon"><Icon name="resource" /></span>
+                <span className="stat-icon">
+                  <Icon name="resource" />
+                </span>
               </div>
 
               <div className="stat-value">
-                {loading ? "…" : summary.active_requests}
+                {loading
+                  ? "…"
+                  : summary.active_requests}
               </div>
 
               <div className="stat-detail">
@@ -105,11 +123,15 @@ function Recovery() {
                   CONSENSUS
                 </span>
 
-                <span className="stat-icon"><Icon name="identity" /></span>
+                <span className="stat-icon">
+                  <Icon name="identity" />
+                </span>
               </div>
 
               <div className="stat-value">
-                {loading ? "…" : summary.pending_consensus}
+                {loading
+                  ? "…"
+                  : summary.pending_consensus}
               </div>
 
               <div className="stat-detail">
@@ -123,11 +145,15 @@ function Recovery() {
                   APPROVALS REQUIRED
                 </span>
 
-                <span className="stat-icon"><Icon name="check" /></span>
+                <span className="stat-icon">
+                  <Icon name="check" />
+                </span>
               </div>
 
               <div className="stat-value">
-                {loading ? "…" : summary.required_approvals}
+                {loading
+                  ? "…"
+                  : summary.required_approvals}
               </div>
 
               <div className="stat-detail">
@@ -141,7 +167,9 @@ function Recovery() {
                   TIMELOCK
                 </span>
 
-                <span className="stat-icon"><Icon name="resource" /></span>
+                <span className="stat-icon">
+                  <Icon name="resource" />
+                </span>
               </div>
 
               <div className="stat-value">
@@ -164,6 +192,11 @@ function Recovery() {
                 </div>
 
                 <h2>Identity recovery requests</h2>
+
+                <p>
+                  Recovery remains protected until consensus and
+                  timelock requirements are satisfied.
+                </p>
               </div>
 
               <StatusBadge>
@@ -174,31 +207,41 @@ function Recovery() {
             </div>
 
             {loading ? (
-              <div className="resource-empty recovery-state">
+              <div
+                className="resource-empty recovery-state"
+                aria-live="polite"
+              >
                 <div className="security-state-icon">
                   <Icon name="identity" />
                 </div>
 
-                <h3>Loading recovery requests</h3>
+                <h3>
+                  Loading recovery requests
+                </h3>
 
                 <p>
                   Reading Sentinel recovery state.
                 </p>
               </div>
             ) : error ? (
-              <div className="resource-empty recovery-state recovery-error">
+              <div
+                className="resource-empty recovery-state recovery-error"
+                role="alert"
+              >
                 <div className="security-state-icon">
                   <Icon name="shield" />
                 </div>
 
-                <h3>Recovery service unavailable</h3>
+                <h3>
+                  Recovery service unavailable
+                </h3>
 
                 <p>{error}</p>
 
                 <button
                   type="button"
-                  className="recovery-retry"
-                  onClick={() => window.location.reload()}
+                  className="primary-action"
+                  onClick={() => void loadRecovery()}
                 >
                   Retry
                 </button>
@@ -209,7 +252,9 @@ function Recovery() {
                   <Icon name="check" />
                 </div>
 
-                <h3>No active recovery requests</h3>
+                <h3>
+                  No active recovery requests
+                </h3>
 
                 <p>
                   All registered identities are currently healthy.
@@ -218,18 +263,22 @@ function Recovery() {
             ) : (
               <div className="recovery-list">
                 {requests.map((request) => {
+                  const required =
+                    Number(request.required_approvals) || 0;
+
+                  const approvals =
+                    Number(request.approvals) || 0;
+
                   const progress =
-                    request.required_approvals > 0
+                    required > 0
                       ? Math.min(
-                          (request.approvals /
-                            request.required_approvals) *
-                            100,
+                          (approvals / required) * 100,
                           100,
                         )
                       : 0;
 
                   return (
-                    <div
+                    <article
                       className="recovery-request"
                       key={request.request_id}
                     >
@@ -239,7 +288,9 @@ function Recovery() {
 
                       <div className="recovery-request-main">
                         <div className="recovery-request-title">
-                          <strong>{request.reason}</strong>
+                          <strong>
+                            {request.reason}
+                          </strong>
 
                           <span>
                             {request.request_id}
@@ -247,8 +298,11 @@ function Recovery() {
                         </div>
 
                         <div className="recovery-request-subject">
-                          Subject:{" "}
-                          <strong>{request.subject}</strong>
+                          <span>SUBJECT</span>
+
+                          <strong>
+                            {request.subject}
+                          </strong>
                         </div>
 
                         <div className="recovery-progress">
@@ -258,8 +312,7 @@ function Recovery() {
                             </span>
 
                             <strong>
-                              {request.approvals}/
-                              {request.required_approvals}
+                              {approvals}/{required}
                             </strong>
                           </div>
 
@@ -280,15 +333,76 @@ function Recovery() {
                         </span>
 
                         <span>
-                          Timelock:{" "}
-                          {request.timelock_hours}h
+                          Timelock{" "}
+                          <strong>
+                            {request.timelock_hours}h
+                          </strong>
                         </span>
                       </div>
-                    </div>
+                    </article>
                   );
                 })}
               </div>
             )}
+          </section>
+
+          <section className="recovery-model-grid">
+            <article className="panel recovery-model-card">
+              <div className="recovery-model-icon">
+                <Icon name="identity" />
+              </div>
+
+              <div>
+                <div className="panel-kicker">
+                  CONSENSUS
+                </div>
+
+                <h3>Guardian approval</h3>
+
+                <p>
+                  Recovery requires the configured guardian
+                  consensus before the identity can be restored.
+                </p>
+              </div>
+            </article>
+
+            <article className="panel recovery-model-card">
+              <div className="recovery-model-icon">
+                <Icon name="resource" />
+              </div>
+
+              <div>
+                <div className="panel-kicker">
+                  TIMELOCK
+                </div>
+
+                <h3>Protected recovery delay</h3>
+
+                <p>
+                  A timelock provides an additional security
+                  boundary before recovery becomes effective.
+                </p>
+              </div>
+            </article>
+
+            <article className="panel recovery-model-card">
+              <div className="recovery-model-icon">
+                <Icon name="shield" />
+              </div>
+
+              <div>
+                <div className="panel-kicker">
+                  ENFORCEMENT
+                </div>
+
+                <h3>Restore only after approval</h3>
+
+                <p>
+                  Suspended or restricted identities remain
+                  protected until the recovery workflow completes.
+                </p>
+              </div>
+            </article>
           </section>
         </main>
       </div>

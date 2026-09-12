@@ -1,3 +1,5 @@
+import { useLocation } from "react-router-dom";
+
 function BellIcon() {
   return (
     <svg
@@ -15,27 +17,54 @@ function BellIcon() {
   );
 }
 
+const pageNames: Record<string, string> = {
+  "/dashboard": "Security posture",
+  "/identities": "Identity",
+  "/policies": "Access Control",
+  "/resources": "Resources",
+  "/assets": "Assets",
+  "/audit": "Audit Log",
+  "/security": "Security Center",
+  "/recovery": "Recovery",
+  "/ai-security": "AI Security",
+};
+
 function Topbar() {
+  const location = useLocation();
+
+  const currentPage =
+    pageNames[location.pathname] ?? "Security Infrastructure";
+
   return (
     <header className="topbar">
-      <div className="breadcrumb">
-        <span>Workspace</span>
-        <span className="breadcrumb-separator">/</span>
-        <strong>Overview</strong>
+      <div className="topbar-left">
+        <span className="topbar-title">TrustMesh</span>
+
+        <span className="topbar-divider" aria-hidden="true" />
+
+        <span className="topbar-context">{currentPage}</span>
       </div>
 
-      <div className="topbar-actions">
-        <button className="icon-button" aria-label="Notifications">
+      <div className="topbar-right">
+        <div className="live-status">
+          <span className="live-status-dot" aria-hidden="true" />
+          Protection active
+        </div>
+
+        <button
+          className="icon-button"
+          type="button"
+          aria-label="Security notifications"
+        >
           <BellIcon />
         </button>
 
-        <div className="wallet-chip control-plane-chip">
-          <span className="wallet-status wallet-status-ready" aria-hidden="true" />
-          <span>Control plane online</span>
-        </div>
-
-        <button className="avatar" aria-label="Account">
-          K
+        <button
+          className="avatar"
+          type="button"
+          aria-label="TrustMesh account"
+        >
+          T
         </button>
       </div>
     </header>

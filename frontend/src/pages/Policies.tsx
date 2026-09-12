@@ -5,6 +5,9 @@ import Topbar from "../components/layout/Topbar";
 import StatusBadge from "../components/ui/StatusBadge";
 import Icon from "../components/ui/Icon";
 
+type PolicyEffect = "Allow" | "Deny" | "Adaptive";
+type PolicyStatus = "Active" | "Draft";
+
 interface Policy {
   id: string;
   name: string;
@@ -12,8 +15,8 @@ interface Policy {
   subject: string;
   resource: string;
   action: string;
-  effect: "Allow" | "Deny";
-  status: "Active" | "Draft";
+  effect: PolicyEffect;
+  status: PolicyStatus;
   updated: string;
 }
 
@@ -21,7 +24,7 @@ const initialPolicies: Policy[] = [
   {
     id: "POL-001",
     name: "Administrator full access",
-    description: "Administrators can manage all protected resources.",
+    description: "Administrators can manage protected resources.",
     subject: "Administrator",
     resource: "All resources",
     action: "All actions",
@@ -32,7 +35,7 @@ const initialPolicies: Policy[] = [
   {
     id: "POL-002",
     name: "Analyst security access",
-    description: "Security analysts can inspect security and audit resources.",
+    description: "Security analysts can inspect security resources.",
     subject: "Security Analyst",
     resource: "Security Center",
     action: "Read",
@@ -43,7 +46,7 @@ const initialPolicies: Policy[] = [
   {
     id: "POL-003",
     name: "Developer application access",
-    description: "Developers can access assigned application resources.",
+    description: "Developers can access assigned applications.",
     subject: "Developer",
     resource: "Applications",
     action: "Read, Write",
@@ -58,7 +61,7 @@ const initialPolicies: Policy[] = [
     subject: "Viewer",
     resource: "Assigned resources",
     action: "Read",
-    effect: "Allow",
+    effect: "Adaptive",
     status: "Draft",
     updated: "Yesterday",
   },
@@ -73,13 +76,26 @@ function Policies() {
   const [subject, setSubject] = useState("Administrator");
   const [resource, setResource] = useState("All resources");
   const [action, setAction] = useState("Read");
-  const [effect, setEffect] = useState<"Allow" | "Deny">("Allow");
+  const [effect, setEffect] = useState<PolicyEffect>("Allow");
 
   const filteredPolicies = useMemo(() => {
-    const query = search.toLowerCase();
+    const query = search.trim().toLowerCase();
+
+    if (!query) {
+      return policies;
+    }
 
     return policies.filter((policy) =>
-      `${policy.name} ${policy.description} ${policy.subject} ${policy.resource}`
+      [
+        policy.name,
+        policy.description,
+        policy.subject,
+        policy.resource,
+        policy.action,
+        policy.effect,
+        policy.status,
+      ]
+        .join(" ")
         .toLowerCase()
         .includes(query),
     );
@@ -89,6 +105,23 @@ function Policies() {
     (policy) => policy.status === "Active",
   ).length;
 
+  const adaptiveCount = policies.filter(
+    (policy) => policy.effect === "Adaptive",
+  ).length;
+
+  function openBuilder() {
+    setName("");
+    setSubject("Administrator");
+    setResource("All resources");
+    setAction("Read");
+    setEffect("Allow");
+    setShowBuilder(true);
+  }
+
+  function closeBuilder() {
+    setShowBuilder(false);
+  }
+
   function createPolicy() {
     if (!name.trim()) {
       return;
@@ -97,7 +130,10 @@ function Policies() {
     const newPolicy: Policy = {
       id: `POL-${String(policies.length + 1).padStart(3, "0")}`,
       name: name.trim(),
-      description: `${subject} ${effect.toLowerCase()} access to ${resource}.`,
+      description:
+        effect === "Adaptive"
+          ? `${subject} receives adaptive access to ${resource}.`
+          : `${subject} receives ${effect.toLowerCase()} access to ${resource}.`,
       subject,
       resource,
       action,
@@ -107,8 +143,7 @@ function Policies() {
     };
 
     setPolicies((current) => [newPolicy, ...current]);
-    setName("");
-    setShowBuilder(false);
+    closeBuilder();
   }
 
   return (
@@ -118,229 +153,343 @@ function Policies() {
       <div className="main-area">
         <Topbar />
 
-        <main className="dashboard">
-          <section className="page-heading">
+        <main className="dashboard tm-policy-page">
+          <section className="tm-policy-heading">
             <div>
-              <div className="eyebrow">POLICY CONTROL</div>
+              <div className="tm-policy-eyebrow">ACCESS CONTROL</div>
+
               <h1>Policies</h1>
+
               <p>
-                Define exactly who can access which resources and actions.
+                Define which identities can perform protected actions across
+                the TrustMesh environment.
               </p>
             </div>
 
-            <StatusBadge>Policy engine ready</StatusBadge>
+            <div className="tm-policy-heading-actions">
+              <div className="tm-policy-engine">
+                <span />
+                Policy engine active
+              </div>
+
+              <button
+                type="button"
+                className="tm-policy-create"
+                onClick={openBuilder}
+              >
+                <span>+</span>
+                Create policy
+              </button>
+            </div>
           </section>
 
-          <section className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-card-top">
-                <span className="stat-label">TOTAL POLICIES</span>
-                <span className="stat-icon"><Icon name="policy" /></span>
+          <section className="tm-policy-metrics">
+            <article className="tm-policy-metric">
+              <div className="tm-policy-metric-label">TOTAL POLICIES</div>
+              <div className="tm-policy-metric-value">{policies.length}</div>
+              <div className="tm-policy-metric-detail">
+                Organization authorization rules
               </div>
-              <div className="stat-value">{policies.length}</div>
-              <div className="stat-detail">Organization policy definitions</div>
-            </div>
+            </article>
 
-            <div className="stat-card">
-              <div className="stat-card-top">
-                <span className="stat-label">ACTIVE</span>
-                <span className="stat-icon"><Icon name="check" /></span>
+            <article className="tm-policy-metric">
+              <div className="tm-policy-metric-label">ACTIVE</div>
+              <div className="tm-policy-metric-value tm-green">
+                {activeCount}
               </div>
-              <div className="stat-value">{activeCount}</div>
-              <div className="stat-detail">Policies currently enforced</div>
-            </div>
+              <div className="tm-policy-metric-detail">
+                Currently enforced
+              </div>
+            </article>
 
-            <div className="stat-card">
-              <div className="stat-card-top">
-                <span className="stat-label">DRAFTS</span>
-                <span className="stat-icon"><Icon name="draft" /></span>
-              </div>
-              <div className="stat-value">
+            <article className="tm-policy-metric">
+              <div className="tm-policy-metric-label">DRAFTS</div>
+              <div className="tm-policy-metric-value tm-amber">
                 {policies.length - activeCount}
               </div>
-              <div className="stat-detail">Policies awaiting activation</div>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-card-top">
-                <span className="stat-label">DECISION MODEL</span>
-                <span className="stat-icon"><Icon name="shield" /></span>
+              <div className="tm-policy-metric-detail">
+                Awaiting activation
               </div>
-              <div className="stat-value">RBAC</div>
-              <div className="stat-detail">Role-based access control</div>
-            </div>
+            </article>
+
+            <article className="tm-policy-metric">
+              <div className="tm-policy-metric-label">ADAPTIVE</div>
+              <div className="tm-policy-metric-value tm-blue">
+                {adaptiveCount}
+              </div>
+              <div className="tm-policy-metric-detail">
+                Risk-aware access rules
+              </div>
+            </article>
           </section>
 
-          <section className="policy-builder-layout">
-            <div className="panel policy-list-panel">
-              <div className="panel-header">
+          <section className="tm-policy-layout">
+            <article className="tm-policy-directory">
+              <div className="tm-policy-section-head">
                 <div>
-                  <div className="panel-kicker">POLICY DIRECTORY</div>
-                  <h2>Access policies</h2>
+                  <div className="tm-policy-kicker">POLICY DIRECTORY</div>
+                  <h2>Authorization rules</h2>
+                  <p>
+                    Every protected request is evaluated against these rules.
+                  </p>
                 </div>
 
-                <button
-                  className="primary-action"
-                  onClick={() => setShowBuilder(true)}
-                >
-                  + Create policy
-                </button>
+                <div className="tm-policy-count">
+                  {filteredPolicies.length} rules
+                </div>
               </div>
 
-              <div className="identity-toolbar">
-                <div className="identity-search">
-                  <span className="search-icon"><Icon name="search" /></span>
+              <div className="tm-policy-toolbar">
+                <div className="tm-policy-search">
+                  <Icon name="search" />
+
                   <input
                     type="text"
-                    placeholder="Search policies..."
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search by policy, role, resource or action..."
+                    aria-label="Search policies"
                   />
                 </div>
 
-                <button className="filter-button">
-                  All policies
-                  <span className="filter-chevron">⌄</span>
-                </button>
+                {search && (
+                  <button
+                    type="button"
+                    className="tm-policy-clear"
+                    onClick={() => setSearch("")}
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
 
-              <div className="policy-list">
+              <div className="tm-policy-table">
+                <div className="tm-policy-table-head">
+                  <span>POLICY</span>
+                  <span>SUBJECT</span>
+                  <span>RESOURCE</span>
+                  <span>ACTION</span>
+                  <span>DECISION</span>
+                  <span>STATE</span>
+                </div>
+
                 {filteredPolicies.length === 0 ? (
-                  <div className="identity-empty">
-                    <div className="empty-icon"><Icon name="search" /></div>
-                    <h3>No policies found</h3>
-                    <p>Try a different policy name or resource.</p>
+                  <div className="tm-policy-empty">
+                    <div className="tm-policy-empty-icon">
+                      <Icon name="search" />
+                    </div>
+                    <strong>No policies found</strong>
+                    <span>
+                      Try a different policy, role, resource or action.
+                    </span>
                   </div>
                 ) : (
                   filteredPolicies.map((policy) => (
-                    <div className="policy-row" key={policy.id}>
-                      <div className="policy-main">
-                        <div className="policy-icon"><Icon name="policy" /></div>
+                    <div className="tm-policy-row" key={policy.id}>
+                      <div className="tm-policy-name">
+                        <div className="tm-policy-icon">
+                          <Icon name="policy" />
+                        </div>
 
                         <div>
                           <strong>{policy.name}</strong>
                           <span>{policy.description}</span>
+                          <small>{policy.id}</small>
                         </div>
                       </div>
 
-                      <div className="policy-rule">
-                        <span className="policy-rule-label">SUBJECT</span>
-                        <strong>{policy.subject}</strong>
+                      <div className="tm-policy-cell">
+                        {policy.subject}
                       </div>
 
-                      <div className="policy-rule">
-                        <span className="policy-rule-label">RESOURCE</span>
-                        <strong>{policy.resource}</strong>
+                      <div className="tm-policy-cell">
+                        {policy.resource}
                       </div>
 
-                      <div className="policy-rule">
-                        <span className="policy-rule-label">ACTION</span>
-                        <strong>{policy.action}</strong>
+                      <div className="tm-policy-cell">
+                        {policy.action}
                       </div>
 
-                      <div className="policy-result">
+                      <div>
+                        <span
+                          className={`tm-policy-effect tm-effect-${policy.effect.toLowerCase()}`}
+                        >
+                          <span />
+                          {policy.effect}
+                        </span>
+                      </div>
+
+                      <div className="tm-policy-state">
                         <StatusBadge
                           variant={
-                            policy.effect === "Allow"
+                            policy.status === "Active"
                               ? "success"
-                              : "danger"
+                              : "warning"
                           }
                         >
-                          {policy.effect}
+                          {policy.status}
                         </StatusBadge>
 
-                        <span>{policy.updated}</span>
+                        <small>{policy.updated}</small>
                       </div>
                     </div>
                   ))
                 )}
               </div>
-            </div>
+            </article>
 
-            <div className="panel policy-model-panel">
-              <div className="panel-header">
+            <aside className="tm-policy-model">
+              <div className="tm-policy-section-head">
                 <div>
-                  <div className="panel-kicker">ACCESS MODEL</div>
-                  <h2>Authorization flow</h2>
+                  <div className="tm-policy-kicker">DECISION PIPELINE</div>
+                  <h2>How access is evaluated</h2>
                 </div>
               </div>
 
-              <div className="policy-flow">
-                <div className="policy-flow-node">
+              <div className="tm-policy-pipeline">
+                <div className="tm-policy-pipeline-node">
                   <span>01</span>
                   <strong>Identity</strong>
-                  <small>DID / identity</small>
+                  <small>Identity state</small>
                 </div>
 
-                <div className="policy-flow-arrow"><Icon name="arrow" /></div>
+                <div className="tm-policy-pipeline-line" />
 
-                <div className="policy-flow-node">
+                <div className="tm-policy-pipeline-node">
                   <span>02</span>
                   <strong>Role</strong>
                   <small>RBAC assignment</small>
                 </div>
 
-                <div className="policy-flow-arrow"><Icon name="arrow" /></div>
+                <div className="tm-policy-pipeline-line" />
 
-                <div className="policy-flow-node">
+                <div className="tm-policy-pipeline-node">
                   <span>03</span>
                   <strong>Policy</strong>
-                  <small>Rules evaluated</small>
+                  <small>Rule evaluation</small>
                 </div>
 
-                <div className="policy-flow-arrow"><Icon name="arrow" /></div>
+                <div className="tm-policy-pipeline-line" />
 
-                <div className="policy-flow-node">
+                <div className="tm-policy-pipeline-node tm-policy-pipeline-final">
                   <span>04</span>
-                  <strong>Decision</strong>
-                  <small>Allow / deny</small>
+                  <strong>Checkpoint</strong>
+                  <small>Allow / deny / adapt</small>
                 </div>
               </div>
 
-              <div className="policy-callout">
-                <span>CORE ACCESS CALL</span>
-                <code>
-                  PolicyEngine.checkAccess(orgId, did, resourceId, action)
-                </code>
+              <div className="tm-policy-decision-card">
+                <div className="tm-policy-decision-top">
+                  <span>PROTECTED REQUEST</span>
+                  <span className="tm-live-dot">
+                    <i />
+                    LIVE
+                  </span>
+                </div>
+
+                <div className="tm-policy-decision-route">
+                  <span>Identity</span>
+                  <b>→</b>
+                  <span>Role</span>
+                  <b>→</b>
+                  <span>Policy</span>
+                  <b>→</b>
+                  <strong>Decision</strong>
+                </div>
+
+                <p>
+                  Identity state and authorization policy are checked before a
+                  protected action is allowed to continue.
+                </p>
               </div>
-            </div>
+
+              <div className="tm-policy-effects">
+                <div className="tm-policy-effects-title">
+                  DECISION TYPES
+                </div>
+
+                <div className="tm-policy-effect-row">
+                  <span className="tm-effect-dot tm-dot-allow" />
+                  <div>
+                    <strong>Allow</strong>
+                    <small>Request proceeds normally.</small>
+                  </div>
+                </div>
+
+                <div className="tm-policy-effect-row">
+                  <span className="tm-effect-dot tm-dot-adaptive" />
+                  <div>
+                    <strong>Adaptive</strong>
+                    <small>Access changes according to risk.</small>
+                  </div>
+                </div>
+
+                <div className="tm-policy-effect-row">
+                  <span className="tm-effect-dot tm-dot-deny" />
+                  <div>
+                    <strong>Deny</strong>
+                    <small>Protected action is rejected.</small>
+                  </div>
+                </div>
+              </div>
+            </aside>
           </section>
         </main>
       </div>
 
       {showBuilder && (
-        <div className="policy-modal-backdrop">
-          <section className="policy-modal">
-            <div className="policy-modal-header">
+        <div
+          className="tm-policy-modal-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closeBuilder();
+            }
+          }}
+        >
+          <section
+            className="tm-policy-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="policy-builder-title"
+          >
+            <div className="tm-policy-modal-head">
               <div>
-                <div className="panel-kicker">POLICY BUILDER</div>
-                <h2>Create access policy</h2>
+                <div className="tm-policy-eyebrow">POLICY BUILDER</div>
+
+                <h2 id="policy-builder-title">Create access policy</h2>
+
                 <p>
-                  Define the authorization rule using the TrustLayer access
-                  model.
+                  Define the identity, protected resource, action and decision
+                  behavior.
                 </p>
               </div>
 
               <button
-                className="modal-close"
-                onClick={() => setShowBuilder(false)}
+                type="button"
+                className="tm-policy-modal-close"
+                onClick={closeBuilder}
+                aria-label="Close policy builder"
               >
                 ×
               </button>
             </div>
 
-            <div className="policy-form">
-              <label>
-                Policy name
+            <div className="tm-policy-form">
+              <label className="tm-policy-field tm-policy-field-full">
+                <span>Policy name</span>
+
                 <input
                   value={name}
                   onChange={(event) => setName(event.target.value)}
-                  placeholder="e.g. Finance read access"
+                  placeholder="e.g. Finance transfer protection"
+                  autoFocus
                 />
               </label>
 
-              <label>
-                Subject / role
+              <label className="tm-policy-field">
+                <span>Subject / role</span>
+
                 <select
                   value={subject}
                   onChange={(event) => setSubject(event.target.value)}
@@ -349,11 +498,13 @@ function Policies() {
                   <option>Security Analyst</option>
                   <option>Developer</option>
                   <option>Viewer</option>
+                  <option>Employee</option>
                 </select>
               </label>
 
-              <label>
-                Resource
+              <label className="tm-policy-field">
+                <span>Resource</span>
+
                 <select
                   value={resource}
                   onChange={(event) => setResource(event.target.value)}
@@ -363,12 +514,14 @@ function Policies() {
                   <option>Security Center</option>
                   <option>Audit Log</option>
                   <option>Digital Assets</option>
+                  <option>Bank Accounts</option>
                   <option>Assigned resources</option>
                 </select>
               </label>
 
-              <label>
-                Action
+              <label className="tm-policy-field">
+                <span>Action</span>
+
                 <select
                   value={action}
                   onChange={(event) => setAction(event.target.value)}
@@ -376,47 +529,78 @@ function Policies() {
                   <option>Read</option>
                   <option>Write</option>
                   <option>Execute</option>
+                  <option>Transfer funds</option>
+                  <option>Delete user</option>
                   <option>Manage</option>
                   <option>All actions</option>
                 </select>
               </label>
 
-              <label>
-                Effect
+              <label className="tm-policy-field">
+                <span>Decision behavior</span>
+
                 <select
                   value={effect}
                   onChange={(event) =>
-                    setEffect(event.target.value as "Allow" | "Deny")
+                    setEffect(event.target.value as PolicyEffect)
                   }
                 >
-                  <option>Allow</option>
-                  <option>Deny</option>
+                  <option value="Allow">Allow</option>
+                  <option value="Adaptive">Adaptive</option>
+                  <option value="Deny">Deny</option>
                 </select>
               </label>
             </div>
 
-            <div className="policy-preview">
-              <span>POLICY PREVIEW</span>
+            <div className="tm-policy-preview">
+              <div className="tm-policy-preview-head">
+                <span>POLICY PREVIEW</span>
+                <span
+                  className={`tm-policy-preview-effect tm-preview-${effect.toLowerCase()}`}
+                >
+                  {effect}
+                </span>
+              </div>
 
-              <strong>
-                {subject} → {action} → {resource}
-              </strong>
+              <div className="tm-policy-preview-route">
+                <div>
+                  <small>SUBJECT</small>
+                  <strong>{subject}</strong>
+                </div>
 
-              <small>
-                Decision: <b>{effect}</b>
-              </small>
+                <span>→</span>
+
+                <div>
+                  <small>ACTION</small>
+                  <strong>{action}</strong>
+                </div>
+
+                <span>→</span>
+
+                <div>
+                  <small>RESOURCE</small>
+                  <strong>{resource}</strong>
+                </div>
+              </div>
+
+              <p>
+                This rule will be created as a <strong>Draft</strong> and can
+                then be activated through the access-control workflow.
+              </p>
             </div>
 
-            <div className="policy-modal-actions">
+            <div className="tm-policy-modal-footer">
               <button
-                className="filter-button"
-                onClick={() => setShowBuilder(false)}
+                type="button"
+                className="tm-policy-secondary"
+                onClick={closeBuilder}
               >
                 Cancel
               </button>
 
               <button
-                className="primary-action"
+                type="button"
+                className="tm-policy-create"
                 onClick={createPolicy}
                 disabled={!name.trim()}
               >
