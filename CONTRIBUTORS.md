@@ -12,7 +12,7 @@
 | 🔗 | **Smart Contracts (Solidity)** | `Aditya Singh` | DIDRegistry, PolicyEngine, AssetNFT, AuditLogger — contract design, Hardhat tests, on-chain enforcement logic |
 | 🎨 | **UI Design** | `Jahnavi` | Visual design, component styling, dashboard layout, design system |
 | 🧭 | **UX Design** | `Shreya Singh` | User flows, interaction design, usability, information architecture |
-| 🎤 | **Presentation & Documentation** | `ID-5` | Pitch deck, demo script, business model, project documentation |
+| 🎤 | **Presentation & Documentation** | `Krish Choudhary` | Pitch deck, demo script, business model, project documentation |
 | 🧩 | **Workflow & Integration** | `Kavya` | End-to-end system integration, connecting frontend/backend/blockchain layers, deployment workflow |
 
 ---
