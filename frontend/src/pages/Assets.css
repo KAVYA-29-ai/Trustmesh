@@ -1,0 +1,144 @@
+
+.asset-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(5 8 15 / 72%);
+  backdrop-filter: blur(10px);
+}
+
+.asset-modal {
+  width: min(620px, 100%);
+  max-height: min(760px, calc(100vh - 48px));
+  overflow-y: auto;
+  padding: 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+.asset-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.asset-modal-header h2 {
+  margin: 6px 0 6px;
+}
+
+.asset-modal-header p {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.asset-modal-close {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 22px;
+}
+
+.asset-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.asset-form-grid label {
+  display: grid;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.asset-form-grid input,
+.asset-form-grid select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: none;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.asset-form-grid input:focus,
+.asset-form-grid select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(100 140 255 / 12%);
+}
+
+.asset-form-full {
+  grid-column: 1 / -1;
+}
+
+.asset-form-error {
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid rgb(220 80 90 / 35%);
+  border-radius: 10px;
+  background: rgb(220 80 90 / 8%);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.asset-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 28px;
+}
+
+.asset-modal-actions button:disabled,
+.asset-modal-close:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 640px) {
+  .asset-modal-backdrop {
+    padding: 12px;
+  }
+
+  .asset-modal {
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .asset-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .asset-form-full {
+    grid-column: auto;
+  }
+
+  .asset-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .asset-modal-actions button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asset-modal-backdrop,
+  .asset-modal {
+    animation: none;
+    transition: none;
+  }
+}

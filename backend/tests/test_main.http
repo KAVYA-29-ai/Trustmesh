@@ -1,0 +1,25 @@
+### Root
+GET http://127.0.0.1:8000/
+
+### Health
+GET http://127.0.0.1:8000/health
+
+### Authentication
+GET http://127.0.0.1:8000/auth/status
+
+### Access Control
+POST http://127.0.0.1:8000/access/check
+Content-Type: application/json
+
+{
+  "org_id": "demo-org",
+  "did": "did:example:alice",
+  "resource_id": "document-1",
+  "action": "read"
+}
+
+### Assets
+GET http://127.0.0.1:8000/assets/
+
+### Audit
+GET http://127.0.0.1:8000/audit/

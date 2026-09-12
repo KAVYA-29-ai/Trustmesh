@@ -1,2 +1,239 @@
-# Trustmesh
- TrustMesh is a blockchain-backed trust and security platform for managing decentralized identities, access policies, digital assets, audit evidence, and security risk in one place.  The project combines smart-contract enforcement with a FastAPI service, persistent security data, and a React operations console. 
+# TrustMesh
+
+TrustMesh is a blockchain-backed trust and security platform for managing decentralized identities, access policies, digital assets, audit evidence, and security risk in one place.
+
+The project combines smart-contract enforcement with a FastAPI service, persistent security data, and a React operations console. Its goal is to make identity and access decisions explainable: every important action can be connected to policy, evidence, audit history, and risk.
+
+> **Current state:** The local product flow is substantially implemented and verified. The remaining work is concentrated in production hardening, a complete end-to-end attack simulation, adaptive access decisions, a real-time Amoy listener, and deployment outside the local development environment.
+
+## What TrustMesh Does
+
+- Registers and resolves decentralized identifiers (DIDs).
+- Rotates DID verification keys with controller authorization.
+- Enforces roles, permissions, and authorization rules on-chain and in the backend.
+- Represents DID-owned resources as secured ERC-721-style assets.
+- Records immutable audit events through a dedicated contract architecture.
+- Authenticates users with Sign-In with Ethereum (SIWE), including nonce and persistent session handling.
+- Ingests normalized blockchain events for repository storage and security analysis.
+- Detects security risk with deterministic rules and an optional Gemini reasoning agent.
+- Persists security findings and evidence relationships in PostgreSQL.
+- Presents identity, policy, resource, asset, audit, recovery, and security workflows in a React UI.
+
+## Architecture
+
+```text
+		    +----------------------+
+		    |   React + Vite UI    |
+		    | Dashboard and ops UI  |
+		    +----------+-----------+
+			       |
+			       | HTTP / JSON
+			       v
+		    +----------------------+
+		    |   FastAPI backend    |
+		    | Routers and services  |
+		    +------+-----------+---+
+			   |           |
+		   SQLAlchemy       Web3 / ethers
+			   |           |
+			   v           v
+		 +----------------+  +----------------------+
+		 | PostgreSQL     |  | Polygon Amoy RPC     |
+		 | findings,      |  | deployed contracts   |
+		 | sessions,      |  +----------------------+
+		 | events, audit  |
+		 +----------------+
+
+		 Solidity contracts via Hardhat
+       DIDRegistry | PolicyEngine | AssetNFT | AuditLogger
+```
+
+### Repository layout
+
+| Path | Purpose |
+| --- | --- |
+| `contracts/` | Solidity contracts for identity, policy, assets, and audit events |
+| `test/` | Hardhat contract and security tests |
+| `scripts/` | Deployment scripts, including Polygon Amoy deployment |
+| `backend/app/` | FastAPI application, services, repositories, indexer, and models |
+| `backend/alembic/` | PostgreSQL migration history |
+| `backend/tests/` | API, indexer, and security-agent tests |
+| `frontend/src/` | React pages, components, API services, and types |
+| `artifacts/` and `types/` | Generated Hardhat artifacts and TypeScript contract types |
+
+## Implementation Status
+
+### Completed
+
+| Area | Status | What is implemented |
+| --- | --- | --- |
+| Architecture | Done | Backend, frontend, blockchain, and database structure |
+| DID Registry | Done locally | DID creation and resolution, duplicate prevention, and invalid-input validation |
+| Key rotation | Done locally | Controller authorization and verification-key rotation |
+| PolicyEngine / RBAC | Done locally | Roles, permissions, authorization logic, and Hardhat tests |
+| Access control | Done locally | PolicyEngine checks and backend authorization service |
+| AssetNFT | Done locally | Minting, DID ownership, transfers, and security checks |
+| AuditLogger | Done locally | Immutable audit-event contract architecture |
+| FastAPI | Done | Routers, services, API structure, health endpoints, and Swagger documentation |
+| PostgreSQL | Done locally | Docker PostgreSQL and SQLAlchemy repositories |
+| Alembic | Done locally | Persistence schema and migrations applied |
+| SIWE | Done locally | Nonce, signature verification, and persistent sessions |
+| React frontend | Done | Main UI and application pages |
+| Dashboard | Done | Security and system overview |
+| Identity | Done | Identity management UI |
+| Policies | Done | RBAC and policy UI |
+| Resources | Done | Resource workflow and corrected router |
+| Assets | Done | Asset management UI |
+| Audit | Done | Audit interface |
+| Recovery / Sentinel | Done locally | Recovery workflow and persistence |
+| Security Center | Done | Security overview and findings UI |
+| Deterministic Security Agent | Done | Rule-based risk detection |
+| Gemini Security Agent | Done and live verified | Gemini reasoning with structured security assessments |
+| Security Findings | Done | Findings persisted in PostgreSQL |
+| Trust / Risk Graph | Core done, UI verified | Evidence relationships generated by the API and displayed as nodes and relationships |
+| Event ingestion | Core done | Normalized blockchain events sent to repositories and security analysis |
+| Real RPC | Connected | Polygon Amoy connectivity verified |
+
+### Remaining before release
+
+| Area | Status | Remaining work |
+| --- | --- | --- |
+| Attack simulation | Remaining | Implement the complete simulation workflow |
+| Risk-based adaptive access | Partial | Complete allow, step-up, and deny decisions |
+| Policy impact simulator | Partial | Finish simulator APIs and UI |
+| Real blockchain listener | Partial | Connect the listener to the live Amoy event stream |
+| Full E2E attack flow | Partial | Complete attack -> AI -> adaptive access -> UI flow |
+| Performance testing | Remaining | Add load, latency, and throughput testing |
+| Final documentation | Partial | Add final architecture and deployment runbooks |
+| Amoy contract deployment | Blocked | Requires a funded deployer private key |
+| Production PostgreSQL | Not started | Provision and secure a hosted database |
+| Public backend | Not started | Deploy the API outside the Codespace |
+| Public frontend | Not started | Deploy the UI outside the Codespace |
+| Final Git release | Paused | Intentionally waiting until the remaining product work is complete |
+
+## Local Development
+
+### Prerequisites
+
+- Node.js and npm
+- Python 3.11+ with a virtual environment
+- Docker
+- A PostgreSQL container for local persistence
+- Optional: a Gemini API key for Gemini-backed assessments
+
+### Install dependencies
+
+```bash
+npm install
+cd frontend && npm install
+cd ../backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Configure the environment
+
+Create a `.env` file using the local values appropriate for your environment. The backend reads settings such as:
+
+```dotenv
+DATABASE_URL=postgresql+psycopg://trustmesh:trustmesh_dev_password@localhost:5432/trustmesh
+POLYGON_AMOY_RPC_URL=https://polygon-amoy-bor-rpc.publicnode.com
+POLYGON_CHAIN_ID=80002
+SIWE_CHAIN_ID=80002
+SIWE_DOMAIN=localhost
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.8-flash
+DEPLOYER_PRIVATE_KEY=
+DID_REGISTRY_ADDRESS=
+POLICY_ENGINE_ADDRESS=
+ASSET_NFT_ADDRESS=
+AUDIT_LOGGER_ADDRESS=
+```
+
+Never commit private keys or API keys. A deployer key is intentionally not included in the repository and is required before deploying contracts to Amoy.
+
+### Start PostgreSQL and apply migrations
+
+The expected local container is named `trustmesh-postgres`:
+
+```bash
+docker start trustmesh-postgres
+cd backend
+source .venv/bin/activate
+alembic upgrade head
+```
+
+### Start the backend
+
+```bash
+cd backend
+source .venv/bin/activate
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Backend endpoints:
+
+- Health: `http://localhost:8000/health`
+- OpenAPI UI: `http://localhost:8000/docs`
+- OpenAPI JSON: `http://localhost:8000/openapi.json`
+
+### Start the frontend
+
+```bash
+cd frontend
+npm run dev
+```
+
+Vite prints the local frontend URL, normally `http://localhost:5173`.
+
+## Testing
+
+Run Solidity tests from the repository root:
+
+```bash
+npx hardhat test
+```
+
+Run backend tests from `backend/` with the virtual environment active:
+
+```bash
+pytest
+```
+
+Build and lint the frontend:
+
+```bash
+cd frontend
+npm run build
+npm run lint
+```
+
+## Blockchain Deployment
+
+The Hardhat configuration includes Polygon Amoy (`chainId 80002`) and the deployment entry point is `scripts/deploy-amoy.ts`.
+
+Deployment is not currently complete. It requires:
+
+1. A funded Polygon Amoy deployer wallet.
+2. `DEPLOYER_PRIVATE_KEY` configured locally and kept secret.
+3. `POLYGON_AMOY_RPC_URL` configured for the deployment environment.
+4. The resulting contract addresses written to the backend environment.
+
+Until that work is complete, contract functionality should be treated as locally tested rather than publicly deployed.
+
+## Security Model
+
+TrustMesh uses layered controls:
+
+- Smart contracts enforce identity ownership, controller authorization, policy checks, asset ownership, and audit-event integrity.
+- The backend applies service-level authorization and persists sessions, events, findings, and recovery state.
+- The deterministic agent provides repeatable rule-based detection.
+- The Gemini agent adds structured reasoning to security assessments when configured.
+- The trust/risk graph connects findings to the evidence and relationships that produced them.
+
+AI assessments are advisory analysis. They do not replace smart-contract validation or backend authorization checks.
+
+## License
+
+No public license has been selected for this project yet.

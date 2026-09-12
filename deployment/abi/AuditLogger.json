@@ -1,0 +1,289 @@
+{
+  "contractName": "AuditLogger",
+  "abi": [
+    {
+      "type": "constructor",
+      "stateMutability": "undefined",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "_admin"
+        }
+      ]
+    },
+    {
+      "type": "error",
+      "name": "EmitterMustBeContract",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "NotAuthorizedEmitter",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "OnlyAdmin",
+      "inputs": []
+    },
+    {
+      "type": "error",
+      "name": "ZeroAddress",
+      "inputs": []
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "AdminTransferred",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "previousAdmin",
+          "indexed": true
+        },
+        {
+          "type": "address",
+          "name": "newAdmin",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "AuditEvent",
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId",
+          "indexed": true
+        },
+        {
+          "type": "address",
+          "name": "emitter",
+          "indexed": true
+        },
+        {
+          "type": "string",
+          "name": "eventType",
+          "indexed": false
+        },
+        {
+          "type": "address",
+          "name": "subjectDid",
+          "indexed": true
+        },
+        {
+          "type": "bytes",
+          "name": "data",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "timestamp",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "EmitterAuthorized",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "emitter",
+          "indexed": true
+        },
+        {
+          "type": "bool",
+          "name": "authorized",
+          "indexed": false
+        },
+        {
+          "type": "address",
+          "name": "by",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "TypedAuditEvent",
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId",
+          "indexed": true
+        },
+        {
+          "type": "address",
+          "name": "emitter",
+          "indexed": true
+        },
+        {
+          "type": "bytes32",
+          "name": "action",
+          "indexed": true
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceType",
+          "indexed": false
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceId",
+          "indexed": false
+        },
+        {
+          "type": "address",
+          "name": "subjectDid",
+          "indexed": false
+        },
+        {
+          "type": "bool",
+          "name": "success",
+          "indexed": false
+        },
+        {
+          "type": "bytes",
+          "name": "data",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "timestamp",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "admin",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "authorizedEmitters",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "logEvent",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId"
+        },
+        {
+          "type": "string",
+          "name": "eventType"
+        },
+        {
+          "type": "address",
+          "name": "subjectDid"
+        },
+        {
+          "type": "bytes",
+          "name": "data"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "logTypedEvent",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId"
+        },
+        {
+          "type": "bytes32",
+          "name": "action"
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceType"
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceId"
+        },
+        {
+          "type": "address",
+          "name": "subjectDid"
+        },
+        {
+          "type": "bool",
+          "name": "success"
+        },
+        {
+          "type": "bytes",
+          "name": "data"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "setEmitterAuthorized",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "emitter"
+        },
+        {
+          "type": "bool",
+          "name": "authorized"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "transferAdmin",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "newAdmin"
+        }
+      ],
+      "outputs": []
+    }
+  ]
+}

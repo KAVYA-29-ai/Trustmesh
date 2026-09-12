@@ -1,0 +1,729 @@
+{
+  "contractName": "PolicyEngine",
+  "abi": [
+    {
+      "type": "constructor",
+      "stateMutability": "undefined",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "_superAdmin"
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "OrgRegistered",
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId",
+          "indexed": true
+        },
+        {
+          "type": "address",
+          "name": "initialAdmin",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "Paused",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "by",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "PermissionAttachedToResource",
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId",
+          "indexed": true
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceId",
+          "indexed": true
+        },
+        {
+          "type": "bytes32",
+          "name": "permissionId",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "PermissionDefined",
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId",
+          "indexed": true
+        },
+        {
+          "type": "bytes32",
+          "name": "permissionId",
+          "indexed": true
+        },
+        {
+          "type": "string",
+          "name": "action",
+          "indexed": false
+        },
+        {
+          "type": "string",
+          "name": "resourceType",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "ResourceRegistered",
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId",
+          "indexed": true
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceId",
+          "indexed": true
+        },
+        {
+          "type": "string",
+          "name": "resourceType",
+          "indexed": false
+        },
+        {
+          "type": "address",
+          "name": "resourceContract",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "RoleAssigned",
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId",
+          "indexed": true
+        },
+        {
+          "type": "address",
+          "name": "did",
+          "indexed": true
+        },
+        {
+          "type": "bytes32",
+          "name": "roleId",
+          "indexed": false
+        },
+        {
+          "type": "address",
+          "name": "grantedBy",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "RolePermissionSet",
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId",
+          "indexed": true
+        },
+        {
+          "type": "bytes32",
+          "name": "roleId",
+          "indexed": true
+        },
+        {
+          "type": "bytes32",
+          "name": "permissionId",
+          "indexed": false
+        },
+        {
+          "type": "bool",
+          "name": "granted",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "SuperAdminTransferred",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "previousSuperAdmin",
+          "indexed": true
+        },
+        {
+          "type": "address",
+          "name": "newSuperAdmin",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "Unpaused",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "by",
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "ADMIN_ROLE",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "AUDITOR_ROLE",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "MANAGER_ROLE",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "SUPER_ADMIN_ROLE",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "USER_ROLE",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "assignRole",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId"
+        },
+        {
+          "type": "address",
+          "name": "did"
+        },
+        {
+          "type": "bytes32",
+          "name": "roleId"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "attachPermissionToResource",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId"
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceId"
+        },
+        {
+          "type": "bytes32",
+          "name": "permissionId"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "checkAccess",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId"
+        },
+        {
+          "type": "address",
+          "name": "did"
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceId"
+        },
+        {
+          "type": "string",
+          "name": "action"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "computePermissionId",
+      "constant": true,
+      "stateMutability": "pure",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "string",
+          "name": "action"
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceId"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "definePermission",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId"
+        },
+        {
+          "type": "bytes32",
+          "name": "permissionId"
+        },
+        {
+          "type": "string",
+          "name": "action"
+        },
+        {
+          "type": "string",
+          "name": "resourceType"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "getResourcePermissions",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId"
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceId"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bytes32[]",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "orgRegistered",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "pause",
+      "constant": false,
+      "payable": false,
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "paused",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "permissionRegistry",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        },
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bytes32",
+          "name": "permissionId"
+        },
+        {
+          "type": "string",
+          "name": "action"
+        },
+        {
+          "type": "string",
+          "name": "resourceType"
+        },
+        {
+          "type": "bool",
+          "name": "exists"
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "registerOrg",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId"
+        },
+        {
+          "type": "address",
+          "name": "initialAdmin"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "registerResource",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId"
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceId"
+        },
+        {
+          "type": "string",
+          "name": "resourceType"
+        },
+        {
+          "type": "address",
+          "name": "resourceContract"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "resourcePolicies",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        },
+        {
+          "type": "bytes32",
+          "name": ""
+        },
+        {
+          "type": "uint256",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "resources",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        },
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bytes32",
+          "name": "resourceId"
+        },
+        {
+          "type": "string",
+          "name": "resourceType"
+        },
+        {
+          "type": "address",
+          "name": "resourceContract"
+        },
+        {
+          "type": "bool",
+          "name": "exists"
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "revokeRole",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId"
+        },
+        {
+          "type": "address",
+          "name": "did"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "roleAssignments",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        },
+        {
+          "type": "address",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "rolePermissions",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": ""
+        },
+        {
+          "type": "bytes32",
+          "name": ""
+        },
+        {
+          "type": "bytes32",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "setRolePermission",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "bytes32",
+          "name": "orgId"
+        },
+        {
+          "type": "bytes32",
+          "name": "roleId"
+        },
+        {
+          "type": "string",
+          "name": "action"
+        },
+        {
+          "type": "bytes32",
+          "name": "resourceId"
+        },
+        {
+          "type": "bool",
+          "name": "granted"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "superAdmin",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [],
+      "outputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "transferSuperAdmin",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "newSuperAdmin"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "unpause",
+      "constant": false,
+      "payable": false,
+      "inputs": [],
+      "outputs": []
+    }
+  ]
+}

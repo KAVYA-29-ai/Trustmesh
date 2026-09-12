@@ -1,0 +1,625 @@
+{
+  "contractName": "DIDRegistry",
+  "abi": [
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "DIDAttributeChanged",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity",
+          "indexed": true
+        },
+        {
+          "type": "bytes32",
+          "name": "name",
+          "indexed": false
+        },
+        {
+          "type": "bytes",
+          "name": "value",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "validTo",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "previousChange",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "DIDDelegateChanged",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity",
+          "indexed": true
+        },
+        {
+          "type": "bytes32",
+          "name": "delegateType",
+          "indexed": false
+        },
+        {
+          "type": "address",
+          "name": "delegate",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "validTo",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "previousChange",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "DIDDocumentReferenceChanged",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity",
+          "indexed": true
+        },
+        {
+          "type": "string",
+          "name": "documentReference",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "previousChange",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "DIDOwnerChanged",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity",
+          "indexed": true
+        },
+        {
+          "type": "address",
+          "name": "owner",
+          "indexed": false
+        },
+        {
+          "type": "uint256",
+          "name": "previousChange",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "event",
+      "anonymous": false,
+      "name": "DIDRevoked",
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity",
+          "indexed": true
+        },
+        {
+          "type": "uint256",
+          "name": "previousChange",
+          "indexed": false
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "addDelegate",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        },
+        {
+          "type": "bytes32",
+          "name": "delegateType"
+        },
+        {
+          "type": "address",
+          "name": "delegate"
+        },
+        {
+          "type": "uint256",
+          "name": "validity"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "addDelegateSigned",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        },
+        {
+          "type": "uint8",
+          "name": "sigV"
+        },
+        {
+          "type": "bytes32",
+          "name": "sigR"
+        },
+        {
+          "type": "bytes32",
+          "name": "sigS"
+        },
+        {
+          "type": "bytes32",
+          "name": "delegateType"
+        },
+        {
+          "type": "address",
+          "name": "delegate"
+        },
+        {
+          "type": "uint256",
+          "name": "validity"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "changeOwner",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        },
+        {
+          "type": "address",
+          "name": "newOwner"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "changeOwnerSigned",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        },
+        {
+          "type": "uint8",
+          "name": "sigV"
+        },
+        {
+          "type": "bytes32",
+          "name": "sigR"
+        },
+        {
+          "type": "bytes32",
+          "name": "sigS"
+        },
+        {
+          "type": "address",
+          "name": "newOwner"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "changed",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "uint256",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "delegates",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        },
+        {
+          "type": "bytes32",
+          "name": ""
+        },
+        {
+          "type": "address",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "uint256",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "documentReference",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "string",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "identityOwner",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "isActive",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "nonce",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "uint256",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "owners",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "revokeAttribute",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        },
+        {
+          "type": "bytes32",
+          "name": "name"
+        },
+        {
+          "type": "bytes",
+          "name": "value"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "revokeAttributeSigned",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        },
+        {
+          "type": "uint8",
+          "name": "sigV"
+        },
+        {
+          "type": "bytes32",
+          "name": "sigR"
+        },
+        {
+          "type": "bytes32",
+          "name": "sigS"
+        },
+        {
+          "type": "bytes32",
+          "name": "name"
+        },
+        {
+          "type": "bytes",
+          "name": "value"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "revokeDID",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "revokeDelegate",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        },
+        {
+          "type": "bytes32",
+          "name": "delegateType"
+        },
+        {
+          "type": "address",
+          "name": "delegate"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "revokeDelegateSigned",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        },
+        {
+          "type": "uint8",
+          "name": "sigV"
+        },
+        {
+          "type": "bytes32",
+          "name": "sigR"
+        },
+        {
+          "type": "bytes32",
+          "name": "sigS"
+        },
+        {
+          "type": "bytes32",
+          "name": "delegateType"
+        },
+        {
+          "type": "address",
+          "name": "delegate"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "revoked",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": ""
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "type": "function",
+      "name": "setAttribute",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        },
+        {
+          "type": "bytes32",
+          "name": "name"
+        },
+        {
+          "type": "bytes",
+          "name": "value"
+        },
+        {
+          "type": "uint256",
+          "name": "validity"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "setAttributeSigned",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        },
+        {
+          "type": "uint8",
+          "name": "sigV"
+        },
+        {
+          "type": "bytes32",
+          "name": "sigR"
+        },
+        {
+          "type": "bytes32",
+          "name": "sigS"
+        },
+        {
+          "type": "bytes32",
+          "name": "name"
+        },
+        {
+          "type": "bytes",
+          "name": "value"
+        },
+        {
+          "type": "uint256",
+          "name": "validity"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "setDocumentReference",
+      "constant": false,
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        },
+        {
+          "type": "string",
+          "name": "documentUri"
+        }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function",
+      "name": "validDelegate",
+      "constant": true,
+      "stateMutability": "view",
+      "payable": false,
+      "inputs": [
+        {
+          "type": "address",
+          "name": "identity"
+        },
+        {
+          "type": "bytes32",
+          "name": "delegateType"
+        },
+        {
+          "type": "address",
+          "name": "delegate"
+        }
+      ],
+      "outputs": [
+        {
+          "type": "bool",
+          "name": ""
+        }
+      ]
+    }
+  ]
+}
